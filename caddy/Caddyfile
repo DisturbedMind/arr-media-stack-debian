@@ -1,0 +1,35 @@
+:80 {
+	encode gzip
+
+	redir /radarr /radarr/ 308
+	handle /radarr* {
+		reverse_proxy radarr:7878
+	}
+
+	redir /sonarr /sonarr/ 308
+	handle /sonarr* {
+		reverse_proxy sonarr:8989
+	}
+
+	redir /lidarr /lidarr/ 308
+	handle /lidarr* {
+		reverse_proxy lidarr:8686
+	}
+
+	redir /whisparrv3 /whisparrv3/ 308
+	handle /whisparrv3* {
+		reverse_proxy whisparrv3:6969
+	}
+
+	redir /whisparrv2 /whisparrv2/ 308
+	handle /whisparrv2* {
+		reverse_proxy whisparrv2:6969
+	}
+
+	redir /nzbget /nzbget/ 308
+	handle_path /nzbget* {
+		reverse_proxy 172.18.0.1:6789
+	}
+
+	respond "Media stack: /radarr/ /sonarr/ /lidarr/ /whisparrv3/ /whisparrv2/ /nzbget/" 200
+}

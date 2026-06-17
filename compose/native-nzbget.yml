@@ -1,0 +1,116 @@
+name: media-stack
+
+x-common-env: &common-env
+  PUID: "${PUID}"
+  PGID: "${PGID}"
+  UMASK: "${UMASK}"
+  TZ: "${TZ}"
+
+x-common-service: &common-service
+  restart: unless-stopped
+  networks:
+    - media
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  caddy:
+    container_name: caddy
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks:
+      - media
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "80:80"
+    volumes:
+      - /opt/media-stack/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/media-stack/caddy/data:/data
+      - /opt/media-stack/caddy/config:/config
+
+  radarr:
+    <<: *common-service
+    container_name: radarr
+    image: ghcr.io/hotio/radarr:release
+    ports:
+      - "7878:7878"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "7878/tcp"
+    volumes:
+      - /opt/media-stack/appdata/radarr:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+      - /mnt/media/cinema:/mnt/media/cinema
+      - /mnt/media/adult:/mnt/media/adult
+
+  sonarr:
+    <<: *common-service
+    container_name: sonarr
+    image: ghcr.io/hotio/sonarr:release
+    ports:
+      - "8989:8989"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "8989/tcp"
+    volumes:
+      - /opt/media-stack/appdata/sonarr:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+      - /mnt/media/cinema:/mnt/media/cinema
+      - /mnt/media/adult:/mnt/media/adult
+
+  lidarr:
+    <<: *common-service
+    container_name: lidarr
+    image: ghcr.io/hotio/lidarr:release
+    ports:
+      - "8686:8686"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "8686/tcp"
+    volumes:
+      - /opt/media-stack/appdata/lidarr:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+      - /mnt/media/cinema:/mnt/media/cinema
+      - /mnt/media/adult:/mnt/media/adult
+
+  whisparrv3:
+    <<: *common-service
+    container_name: whisparrv3
+    image: ghcr.io/hotio/whisparr:v3
+    ports:
+      - "6969:6969"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "6969/tcp"
+    volumes:
+      - /opt/media-stack/appdata/whisparr-v3:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+      - /mnt/media/cinema:/mnt/media/cinema
+      - /mnt/media/adult:/mnt/media/adult
+
+  whisparrv2:
+    <<: *common-service
+    container_name: whisparrv2
+    image: ghcr.io/hotio/whisparr:v2
+    ports:
+      - "6970:6969"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "6969/tcp"
+    volumes:
+      - /opt/media-stack/appdata/whisparr-v2:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+      - /mnt/media/cinema:/mnt/media/cinema
+      - /mnt/media/adult:/mnt/media/adult
+
+networks:
+  media:
+    name: media

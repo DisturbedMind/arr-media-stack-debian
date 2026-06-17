@@ -1,0 +1,2 @@
+//192.168.137.110/cinema /mnt/media/cinema cifs credentials=/etc/samba/media-stack.cred,uid=1000,gid=1000,iocharset=utf8,vers=3.0,file_mode=0775,dir_mode=0775,noperm,nofail,_netdev,x-systemd.automount,x-systemd.idle-timeout=60 0 0
+//192.168.137.110/adult  /mnt/media/adult  cifs credentials=/etc/samba/media-stack.cred,uid=1000,gid=1000,iocharset=utf8,vers=3.0,file_mode=0775,dir_mode=0775,noperm,nofail,_netdev,x-systemd.automount,x-systemd.idle-timeout=60 0 0

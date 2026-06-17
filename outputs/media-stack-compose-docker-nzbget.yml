@@ -1,0 +1,113 @@
+name: media-stack
+
+x-common-env: &common-env
+  PUID: "${PUID}"
+  PGID: "${PGID}"
+  UMASK: "${UMASK}"
+  TZ: "${TZ}"
+
+x-common-service: &common-service
+  restart: unless-stopped
+  networks:
+    - media
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  nzbget:
+    <<: *common-service
+    container_name: nzbget
+    image: ghcr.io/hotio/nzbget:release
+    ports:
+      - "6789:6789"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "6789/tcp"
+    volumes:
+      - /opt/media-stack/appdata/nzbget:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+
+  radarr:
+    <<: *common-service
+    container_name: radarr
+    image: ghcr.io/hotio/radarr:release
+    depends_on:
+      - nzbget
+    ports:
+      - "7878:7878"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "7878/tcp"
+    volumes:
+      - /opt/media-stack/appdata/radarr:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+
+  sonarr:
+    <<: *common-service
+    container_name: sonarr
+    image: ghcr.io/hotio/sonarr:release
+    depends_on:
+      - nzbget
+    ports:
+      - "8989:8989"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "8989/tcp"
+    volumes:
+      - /opt/media-stack/appdata/sonarr:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+
+  lidarr:
+    <<: *common-service
+    container_name: lidarr
+    image: ghcr.io/hotio/lidarr:release
+    depends_on:
+      - nzbget
+    ports:
+      - "8686:8686"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "8686/tcp"
+    volumes:
+      - /opt/media-stack/appdata/lidarr:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+
+  whisparrv3:
+    <<: *common-service
+    container_name: whisparrv3
+    image: ghcr.io/hotio/whisparr:v3
+    depends_on:
+      - nzbget
+    ports:
+      - "6969:6969"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "6969/tcp"
+    volumes:
+      - /opt/media-stack/appdata/whisparr-v3:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+
+  whisparrv2:
+    <<: *common-service
+    container_name: whisparrv2
+    image: ghcr.io/hotio/whisparr:v2
+    depends_on:
+      - nzbget
+    ports:
+      - "6970:6969"
+    environment:
+      <<: *common-env
+      WEBUI_PORTS: "6969/tcp"
+    volumes:
+      - /opt/media-stack/appdata/whisparr-v2:/config
+      - /mnt/media/cinema:/data/cinema
+      - /mnt/media/adult:/data/adult
+
+networks:
+  media:
+    name: media
