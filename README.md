@@ -678,6 +678,8 @@ Run these on the Caddy server:
 ip -br addr
 sudo systemctl status caddy --no-pager
 sudo ss -ltnp '( sport = :80 )'
+sudo ss -4ltnp '( sport = :80 )'
+sudo ss -6ltnp '( sport = :80 )'
 sudo grep -nE 'bind|wolf.den|reverse_proxy|:80' /etc/caddy/Caddyfile
 curl -v -H 'Host: radarr.wolf.den' http://127.0.0.1/
 curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
@@ -716,7 +718,27 @@ If `ip -br addr` does not show `192.168.137.253` on a network interface, fix the
 
 `docker0` being `DOWN` does not explain this specific symptom. A localhost `200` with a LAN-IP failure happens at the Caddy listener/network layer before Docker is involved. Docker matters later, when Caddy proxies to the Arr backend ports.
 
-If `ss` shows Caddy listening on `*:80`, that is equivalent to listening on all local interfaces. Caddy itself is not restricted to localhost. The next split is:
+If `ss` shows Caddy listening on `*:80`, check IPv4 specifically:
+
+```bash
+sudo ss -4ltnp '( sport = :80 )'
+sudo ss -6ltnp '( sport = :80 )'
+```
+
+If `ss -6` shows Caddy but `ss -4` shows nothing, Caddy is only listening on IPv6. Force an IPv4 listener by using an explicit `:80` site address in `/etc/caddy/Caddyfile` and removing any `bind` lines:
+
+```bash
+sudo sed -i '/^[[:space:]]*bind /d' /etc/caddy/Caddyfile
+sudo sed -i 's/^http:\/\/radarr\.wolf\.den/:80/' /etc/caddy/Caddyfile
+sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+sudo ss -4ltnp '( sport = :80 )'
+```
+
+Only do that quick test temporarily, because it makes one catch-all site. If it fixes IPv4 access, rebuild the Caddyfile using a single `:80` site with host matchers.
+
+If `ss -4` shows Caddy on `*:80`, Caddy is listening on IPv4 all local interfaces. The next split is:
 
 ```bash
 curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
