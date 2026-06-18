@@ -538,11 +538,29 @@ Whisparr v3: http://DEBIAN_SERVER_IP:6969
 Whisparr v2: http://DEBIAN_SERVER_IP:6970
 NZBGet:      http://DEBIAN_SERVER_IP:6789
 ```
+
+These direct URLs assume the Arr app `URL Base` fields are blank. If you later set `URL Base` for path-based Caddy access, the direct URLs also need the path, for example `http://DEBIAN_SERVER_IP:7878/radarr/`.
 ## 9. Internal Caddy Reverse Proxy
 
 Caddy is included as an internal HTTP reverse proxy on port `80`.
 
 This guide runs Caddy in Docker using the official `caddy:2-alpine` image. You do not need to install Caddy with `apt` on Debian for this stack.
+
+You have two clean choices:
+
+```text
+Option A: Path-based Caddy
+Use http://DEBIAN_SERVER_IP/radarr/
+Requires Arr URL Base values like /radarr.
+Plain direct-port URLs change to http://DEBIAN_SERVER_IP:7878/radarr/.
+
+Option B: Direct ports, or hostname-based Caddy
+Use http://DEBIAN_SERVER_IP:7878/ directly, or names like http://radarr.media.home.arpa/.
+Keep every Arr URL Base blank.
+This is usually less confusing while you are still testing downloads and imports.
+```
+
+The download client settings do not change in either option. The Arr apps should still connect to native NZBGet at `172.18.0.1:6789` with download-client `Url Base` blank.
 
 The Caddy service is already included in:
 
@@ -554,6 +572,12 @@ The Caddy config is:
 
 ```text
 caddy/Caddyfile
+```
+
+That file is the path-based Caddy config. A no-URL-Base hostname example is also included here:
+
+```text
+caddy/Caddyfile.hostnames.example
 ```
 
 On the Debian server, the live Caddy paths are:
@@ -595,7 +619,7 @@ docker compose ps caddy
 curl -I http://127.0.0.1/
 ```
 
-Use these browser URLs:
+If you choose Option A, use these browser URLs:
 
 ```text
 Radarr:      http://DEBIAN_SERVER_IP/radarr/
@@ -606,7 +630,7 @@ Whisparr v2: http://DEBIAN_SERVER_IP/whisparrv2/
 NZBGet:      http://DEBIAN_SERVER_IP/nzbget/
 ```
 
-Test the routes from Debian:
+Test the path routes from Debian:
 
 ```bash
 curl -I http://127.0.0.1/radarr/
@@ -636,7 +660,7 @@ Project copy:
 caddy/Caddyfile
 ```
 
-Set URL Base inside each Arr app:
+For Option A only, set URL Base inside each Arr app:
 
 ```text
 Radarr:      Settings -> General -> URL Base: /radarr
@@ -653,7 +677,19 @@ cd /opt/media-stack
 docker compose restart radarr sonarr lidarr whisparrv3 whisparrv2 caddy
 ```
 
-Important: these Arr URL Base settings are only for browser access through Caddy. They are not download-client settings.
+Important: these Arr URL Base settings are only for browser access through path-based Caddy. They are not download-client settings.
+
+Once you set an Arr `URL Base`, plain direct-port access without that base path will no longer behave correctly. Use these direct-port URLs instead:
+
+```text
+Radarr:      http://DEBIAN_SERVER_IP:7878/radarr/
+Sonarr:      http://DEBIAN_SERVER_IP:8989/sonarr/
+Lidarr:      http://DEBIAN_SERVER_IP:8686/lidarr/
+Whisparr v3: http://DEBIAN_SERVER_IP:6969/whisparrv3/
+Whisparr v2: http://DEBIAN_SERVER_IP:6970/whisparrv2/
+```
+
+If you want the simple direct-port URLs to keep working, leave every Arr `URL Base` blank and skip the path-based Caddy URLs. You can still use direct ports, or switch to hostname-based Caddy with `caddy/Caddyfile.hostnames.example` and LAN DNS/hosts entries pointing those names to `DEBIAN_SERVER_IP`.
 
 NZBGet is native on Debian and does not need to know about Caddy for the Arr apps to work. Caddy proxies `/nzbget/` to:
 
@@ -738,6 +774,16 @@ Whisparr v2: whisparrv2
 Do not use `/radarr`, `/sonarr`, `/lidarr`, `/whisparr`, or `/nzbget` in the download client Url Base field.
 
 Even when Caddy is enabled, keep the download-client Url Base blank. Caddy is for your browser, not for Arr-to-NZBGet traffic.
+
+Do not put an Arr `URL Base` value into the NZBGet download-client form. These are separate settings with annoyingly similar names:
+
+```text
+Arr app Settings -> General -> URL Base:
+Only needed for path-based Caddy browser access.
+
+Arr app Settings -> Download Clients -> NZBGet -> Url Base:
+Keep blank for this native NZBGet setup.
+```
 
 If your Docker network gateway is not `172.18.0.1`, use the gateway returned by:
 
@@ -918,6 +964,7 @@ docker compose up -d
 - [Native NZBGet Compose](compose/native-nzbget.yml)
 - [Docker NZBGet Compose](compose/docker-nzbget.yml)
 - [Caddyfile](caddy/Caddyfile)
+- [Hostname Caddyfile example](caddy/Caddyfile.hostnames.example)
 - [Env example](examples/media-stack.env.example)
 - [SMB fstab example](examples/fstab-smb-example.txt)
 - [Native NZBGet notes](outputs/native-nzbget-arr-troubleshooting.md)

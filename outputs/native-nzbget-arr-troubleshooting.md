@@ -18,6 +18,18 @@ Category: radarr / sonarr / lidarr / whisparrv3 / whisparrv2
 
 Do not put `/radarr`, `/sonarr`, `/lidarr`, `/whisparr`, or `/nzbget` in the download-client Url Base field unless the Arr app is intentionally connecting through a reverse proxy path.
 
+Do not confuse the two URL/base fields:
+
+```text
+Arr app Settings -> General -> URL Base:
+Only for browser access through path-based Caddy, for example /radarr.
+
+Arr app Settings -> Download Clients -> NZBGet -> Url Base:
+Keep blank for this native NZBGet setup.
+```
+
+If you set an Arr app `URL Base`, direct browser access changes too. `http://DEBIAN_SERVER_IP:7878` becomes `http://DEBIAN_SERVER_IP:7878/radarr/`. If you want direct ports like `http://DEBIAN_SERVER_IP:7878/` to keep working, leave every Arr `URL Base` blank and either skip path-based Caddy or use hostname-based Caddy instead.
+
 On this install, `host.docker.internal` resolved but the Arr test still hung. The working fix was to use the Docker Compose network gateway directly:
 
 ```text

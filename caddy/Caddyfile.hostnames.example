@@ -1,0 +1,38 @@
+# Optional no-URL-Base Caddy layout.
+#
+# Use this only if your LAN DNS, router DNS, or client hosts files point these
+# names to your Debian server IP. Keep the Arr app URL Base fields blank.
+#
+# Example client hosts entries:
+# 192.168.137.X radarr.media.home.arpa sonarr.media.home.arpa lidarr.media.home.arpa
+# 192.168.137.X whisparrv3.media.home.arpa whisparrv2.media.home.arpa nzbget.media.home.arpa
+
+http://radarr.media.home.arpa {
+	encode gzip
+	reverse_proxy radarr:7878
+}
+
+http://sonarr.media.home.arpa {
+	encode gzip
+	reverse_proxy sonarr:8989
+}
+
+http://lidarr.media.home.arpa {
+	encode gzip
+	reverse_proxy lidarr:8686
+}
+
+http://whisparrv3.media.home.arpa {
+	encode gzip
+	reverse_proxy whisparrv3:6969
+}
+
+http://whisparrv2.media.home.arpa {
+	encode gzip
+	reverse_proxy whisparrv2:6969
+}
+
+http://nzbget.media.home.arpa {
+	encode gzip
+	reverse_proxy 172.18.0.1:6789
+}
