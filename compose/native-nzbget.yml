@@ -19,6 +19,8 @@ services:
   caddy:
     container_name: caddy
     image: caddy:2-alpine
+    profiles:
+      - internal-caddy
     restart: unless-stopped
     networks:
       - media

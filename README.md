@@ -521,6 +521,8 @@ docker compose up -d
 docker compose ps
 ```
 
+The included Docker Caddy service is opt-in. Normal `docker compose up -d` starts the Arr containers only and does not bind port `80`.
+
 Or run the installer with `--start` once the manual mount/NZBGet steps are done:
 
 ```bash
@@ -616,6 +618,24 @@ With this external Caddy layout, keep all Arr `URL Base` fields blank.
 
 Do not use `172.18.0.1` in the external Caddyfile. `172.18.0.1` is only for Docker containers talking back to native NZBGet. Your external Caddy server must proxy to the Debian server LAN IP.
 
+If restarting Caddy shows port `80` is already owned by `docker-proxy`, the internal Docker Caddy container is still running. Stop and remove it:
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Ports}}' | grep ':80->'
+cd /opt/media-stack
+docker compose stop caddy
+docker compose rm -f caddy
+sudo systemctl restart caddy
+```
+
+If the container was created outside Compose, remove it by name:
+
+```bash
+docker stop caddy
+docker rm caddy
+sudo systemctl restart caddy
+```
+
 On the Debian ARR stack server, allow the Caddy server to reach the app ports:
 
 ```bash
@@ -636,10 +656,22 @@ caddy/Caddyfile.external-port-mirror-192.168.137.251.example
 
 That gives you URLs like `http://192.168.137.251:7878/`, but do not use it if Caddy and the ARR stack are on the same host/IP, because the ports will conflict.
 
-The Caddy service is already included in:
+The internal Docker Caddy service is included but disabled by default through a Compose profile:
 
 ```text
 compose/native-nzbget.yml
+```
+
+Normal stack startup does not start it:
+
+```bash
+docker compose up -d
+```
+
+To start the internal Docker Caddy service anyway:
+
+```bash
+docker compose --profile internal-caddy up -d caddy
 ```
 
 The Caddy config is:
@@ -684,11 +716,11 @@ mkdir -p /opt/media-stack/caddy/data /opt/media-stack/caddy/config
 cp caddy/Caddyfile /opt/media-stack/caddy/Caddyfile
 ```
 
-Start Caddy:
+Start internal Docker Caddy:
 
 ```bash
 cd /opt/media-stack
-docker compose up -d caddy
+docker compose --profile internal-caddy up -d caddy
 docker compose logs --tail=100 caddy
 ```
 
@@ -754,7 +786,8 @@ Then restart the containers:
 
 ```bash
 cd /opt/media-stack
-docker compose restart radarr sonarr lidarr whisparrv3 whisparrv2 caddy
+docker compose restart radarr sonarr lidarr whisparrv3 whisparrv2
+docker compose --profile internal-caddy restart caddy
 ```
 
 Important: these Arr URL Base settings are only for browser access through path-based Caddy. They are not download-client settings.
@@ -817,12 +850,13 @@ http://DEBIAN_SERVER_IP:6789
 
 Do not let a reverse proxy problem block downloads. The Arr apps should still connect to NZBGet directly on `172.18.0.1:6789`.
 
-Useful Caddy commands:
+Useful internal Docker Caddy commands:
 
 ```bash
 cd /opt/media-stack
+docker compose --profile internal-caddy up -d caddy
 docker compose logs -f caddy
-docker compose restart caddy
+docker compose --profile internal-caddy restart caddy
 docker exec caddy caddy validate --config /etc/caddy/Caddyfile
 docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
