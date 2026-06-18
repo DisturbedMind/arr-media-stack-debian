@@ -44,7 +44,7 @@ with:
 Failed to restart caddy.service: Unit caddy.service not found.
 ```
 
-then native Caddy is not installed as a Debian service on that machine, or you are running the command on the ARR stack server instead of the Caddy server. For Option C, run `systemctl` commands on the server that owns the `wolf.den` DNS target IP. In the current notes, that is `192.168.137.253`.
+then this machine is not running native Debian Caddy, or you are running the command on the ARR stack server instead of the Caddy server. That is not automatically wrong. For Option C, keep the Caddy you already use and reload it with that Caddy's normal management method. Only use `systemctl` on a machine where Caddy is actually installed as a Debian service.
 
 Check where you are:
 
@@ -53,7 +53,7 @@ hostname
 ip -br addr
 ```
 
-Install native Caddy first, or manage Caddy as a Docker container instead. The external proxy option expects native Caddy so `/etc/caddy/Caddyfile` and `systemctl reload caddy` work.
+Option C is the hostname-based Caddyfile layout, not a Caddy install method. Use `/etc/caddy/Caddyfile` and `systemctl reload caddy` only for native Debian Caddy. If your Caddy runs in Docker or another service, put the same Caddyfile rules wherever that Caddy reads its config and reload it the way you normally do.
 
 If copying the external Caddyfile fails with:
 

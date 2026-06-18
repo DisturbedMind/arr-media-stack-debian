@@ -544,17 +544,17 @@ NZBGet:      http://DEBIAN_SERVER_IP:6789
 These direct URLs assume the Arr app `URL Base` fields are blank. If you later set `URL Base` for path-based Caddy access, the direct URLs also need the path, for example `http://DEBIAN_SERVER_IP:7878/radarr/`.
 ## 9. Caddy Reverse Proxy
 
-Caddy can be used in two ways with this stack:
+Caddy can be wired in two different ways with this stack:
 
 ```text
-Preferred for this install:
-External LAN Caddy on 192.168.137.253 using wolf.den hostnames.
+Preferred Caddyfile layout for this install:
+Hostname-based wolf.den routes through your existing Caddy.
 
 Optional:
 Internal Docker Caddy using the official caddy:2-alpine image.
 ```
 
-For the current setup, use Option C. The internal Docker Caddy service is kept as an optional profile only, so it does not take port `80` from your normal Caddy server.
+For the current setup, use Option C as the Caddyfile layout. Keep your existing Caddy install, service, or container exactly as it is; only adapt its Caddyfile. The internal Docker Caddy service in this repo is kept as an optional profile only, so it does not take port `80` from your normal Caddy.
 
 You have three clean choices:
 
@@ -569,10 +569,10 @@ Use http://DEBIAN_SERVER_IP:7878/ directly, or names like http://radarr.media.ho
 Keep every Arr URL Base blank.
 This is usually less confusing while you are still testing downloads and imports.
 
-Option C: External LAN Caddy on 192.168.137.253
+Option C: Hostname-based wolf.den Caddyfile
 Use names like http://radarr.wolf.den/ through your existing Caddy server.
 Keep every Arr URL Base blank.
-This is the recommended option if you already run Caddy at 192.168.137.253.
+This is the recommended Caddyfile layout for the current install.
 ```
 
 Option C means:
@@ -582,7 +582,8 @@ DNS names point to the Caddy server IP.
 Caddy reverse_proxy points to the ARR stack IP and app ports.
 Arr URL Base fields stay blank.
 Arr download-client Host stays 172.18.0.1 for native NZBGet.
-Do not start the internal Docker Caddy container.
+Leave the repo's internal Docker Caddy profile off unless you intentionally choose it.
+Manage/reload Caddy the same way you already manage your Caddy.
 ```
 
 On this install, the Caddy server moved to `192.168.137.253` and the DNS zone is `wolf.den`. Use this current file:
@@ -788,14 +789,16 @@ caddy/Caddyfile.external-wolf.den.example
 
 In that file, replace `ARR_STACK_IP` with the Debian server IP that runs Docker and NZBGet. If Caddy runs on the same Debian server as the stack, use `127.0.0.1`.
 
-First confirm whether native Caddy is installed on the Caddy server:
+Use the `wolf.den` Caddyfile with the Caddy you already run. The commands below show the common native Debian Caddy path. If your Caddy is managed another way, such as Docker, a custom service, or another host, copy the same Caddyfile content into that Caddy and reload it using your normal method.
+
+Only check/install native Debian Caddy if you actually want Caddy managed by `systemd` on this machine:
 
 ```bash
 systemctl status caddy --no-pager
 command -v caddy
 ```
 
-If `systemctl` says `Unit caddy.service not found`, native Caddy is not installed as a Debian service yet. Install the official Caddy Debian package:
+If `systemctl` says `Unit caddy.service not found`, that only means this machine is not running native Debian Caddy. That is fine if your Caddy already runs another way. Install the official Caddy Debian package only if you want native Debian Caddy:
 
 Before installing, make sure you are on the Caddy server, not just the ARR stack server:
 
@@ -804,7 +807,7 @@ hostname
 ip -br addr
 ```
 
-For Option C, this should be the server that owns the `wolf.den` DNS target IP. In the current notes, that is `192.168.137.253`. If you are on a different machine, `caddy.service not found` may be normal there.
+For the `wolf.den` Caddyfile layout, run any Caddy service commands on the machine that actually runs Caddy. In the current notes, the DNS target is `192.168.137.253`. If you are on a different machine, `caddy.service not found` may be completely normal there.
 
 ```bash
 sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -816,9 +819,9 @@ sudo apt update
 sudo apt install -y caddy
 ```
 
-After that, `systemctl status caddy` should work.
+After that, `systemctl status caddy` should work. If you kept your existing non-systemd Caddy, skip this native install block.
 
-Then install this project's Caddyfile. Run this from the cloned GitHub repo, not from `/etc/caddy` or `/opt/media-stack`.
+Then install or adapt this project's Caddyfile. Run these copy commands from the cloned GitHub repo, not from `/etc/caddy` or `/opt/media-stack`. If your Caddy is not native Debian Caddy, copy the example into the config location used by your Caddy and reload it using your normal Caddy management method.
 
 For the current `wolf.den` setup:
 
@@ -834,6 +837,8 @@ sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
+If you do not use native Debian Caddy, replace the final `systemctl reload caddy` with your existing reload/restart command.
+
 For the older `media.home.arpa` example:
 
 ```bash
@@ -846,6 +851,8 @@ sudo sed -i "s/ARR_STACK_IP/${ARR_STACK_IP}/g" /etc/caddy/Caddyfile
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
+
+Again, if your Caddy is not a native Debian service, reload it the way you normally reload Caddy.
 
 If `ls` says the file does not exist, you are either in the wrong folder or the repo is old. Find the repo copy with:
 
@@ -930,7 +937,7 @@ docker rm caddy
 sudo systemctl restart caddy
 ```
 
-If `systemctl restart caddy` still says `Unit caddy.service not found`, do not keep retrying restart. Either you are not on the Caddy server, or native Caddy is not installed there. Option C assumes native Caddy on the server that owns the `wolf.den` DNS target IP, currently `192.168.137.253`.
+If `systemctl restart caddy` still says `Unit caddy.service not found`, do not keep retrying restart. Either you are not on the machine that runs native Caddy, or your Caddy is managed another way. Option C does not require native Caddy; it only describes the hostname-based Caddyfile layout. Use your existing Caddy reload method instead.
 
 On the Debian ARR stack server, allow the Caddy server to reach the app ports:
 
