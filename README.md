@@ -2,50 +2,39 @@
 
 # arr-media-stack-debian
 
-This project documents the working Debian 12.11 media stack for:
+A Debian 12.11 install guide and helper script for a home ARR media stack using Docker for Radarr, Sonarr, Lidarr, Whisparr v3, and Whisparr v2, with NZBGet installed natively on Debian and media stored on Windows SMB shares.
 
-- Radarr
-- Sonarr
-- Lidarr
-- Whisparr v3
-- Whisparr v2
-- Native NZBGet on Debian
-- Windows-hosted SMB media shares on `192.168.137.110`
+This project is built around one practical goal: keep the application configs safe in `/opt/media-stack`, keep the media on the Windows storage box, and make every container see the same paths so imports do not turn into a path-mapping circus.
 
-The recommended final setup is: **Arr apps in Docker, NZBGet installed directly on Debian**.
+## Script Description
 
-## Quick GitHub Install
+`scripts/install-debian.sh` prepares a Debian 12 server for the stack. It installs base packages, Docker Engine, native NZBGet, `unrar`, `ffmpeg`, and the Docker Compose plugin, then stages the Compose file, example environment file, Caddy examples, and SMB fstab example under `/opt/media-stack`.
 
-Install this project from GitHub on Debian with:
+The script intentionally does not write your SMB password, does not edit `/etc/fstab`, and does not start the stack unless you pass `--start`. Those steps are left manual so the storage mounts can be verified before any app starts writing to them.
 
-```bash
-sudo apt update
-sudo apt install -y git
-cd /tmp
-git clone https://github.com/DisturbedMind/arr-media-stack-debian.git
-cd arr-media-stack-debian
-chmod +x scripts/install-debian.sh
-./scripts/install-debian.sh
-```
+## Target Setup
 
-Use `--start` only after the SMB mounts and NZBGet settings are ready:
-
-```bash
-./scripts/install-debian.sh --start
-```
-
-Repository: `DisturbedMind/arr-media-stack-debian`.
-
-## 1. Paths Used
-
-Windows shares:
+Apps:
 
 ```text
-\\192.168.137.110\cinema\movies
-\\192.168.137.110\cinema\series
-\\192.168.137.110\cinema\music
-\\192.168.137.110\adult\movies
-\\192.168.137.110\adult\adultseries
+Radarr        Docker, hotio image
+Sonarr        Docker, hotio image
+Lidarr        Docker, hotio image
+Whisparr v3   Docker, hotio image
+Whisparr v2   Docker, hotio image
+NZBGet        Native Debian package
+Caddy         Optional reverse proxy
+```
+
+Storage:
+
+```text
+Windows storage server: 192.168.137.110
+Cinema movies:          \\192.168.137.110\cinema\movies
+Cinema series:          \\192.168.137.110\cinema\series
+Cinema music:           \\192.168.137.110\cinema\music
+Adult movies:           \\192.168.137.110\adult\movies
+Adult series:           \\192.168.137.110\adult\adultseries
 ```
 
 Debian mount paths:
@@ -58,160 +47,63 @@ Debian mount paths:
 Container paths:
 
 ```text
-/data/cinema
-/data/adult
 /mnt/media/cinema
 /mnt/media/adult
+/data/cinema
+/data/adult
 ```
 
-The native NZBGet setup uses `/mnt/media/...` paths. The containers also mount `/mnt/media/...` so remote path mapping is simple.
+The `/mnt/media/...` paths are the important ones. Native NZBGet reports those paths, and the containers can see those same paths, so remote path mappings stay simple.
 
-## 2. Install Docker on Debian 12.11
+## Install Steps
+
+### 1. Download The Project
+
+Run this on the Debian 12.11 server:
 
 ```bash
 sudo apt update
-sudo apt full-upgrade -y
-sudo apt install -y ca-certificates curl cifs-utils acl nano
-
-for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do
-  sudo apt remove -y "$pkg"
-done
-
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/debian
-Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
-Components: stable
-Architectures: $(dpkg --print-architecture)
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-sudo docker run hello-world
-sudo usermod -aG docker "$USER"
+sudo apt install -y git
+cd /tmp
+git clone https://github.com/DisturbedMind/arr-media-stack-debian.git
+cd arr-media-stack-debian
 ```
 
-Log out and back in, then test:
+If you already cloned it:
 
 ```bash
-docker version
-docker compose version
+cd /tmp/arr-media-stack-debian
+git pull
 ```
 
-## 3. Create Folders
+### 2. Run The Installer
+
+Stage the stack without starting the containers:
 
 ```bash
-sudo mkdir -p /opt/media-stack/appdata/{radarr,sonarr,lidarr,whisparr-v3,whisparr-v2}
-sudo mkdir -p /opt/media-stack/backups
-sudo mkdir -p /mnt/media/cinema /mnt/media/adult
-sudo chown -R 1000:1000 /opt/media-stack
-sudo chmod -R 775 /opt/media-stack
-sudo chown root:root /mnt/media/cinema /mnt/media/adult
-sudo chmod 0555 /mnt/media/cinema /mnt/media/adult
+chmod +x scripts/install-debian.sh
+./scripts/install-debian.sh
 ```
 
-Change `1000:1000` if your Debian user has a different UID/GID:
+Use `--start` only after SMB mounts and NZBGet settings are ready:
 
 ```bash
-id
+./scripts/install-debian.sh --start
 ```
 
-## 4. Mount Windows Shares
+After the installer, log out and back in if it added your user to the `docker` group.
 
-Create SMB credentials:
+### 3. Check Debian Non-Free Repos
 
-```bash
-sudo install -m 0700 -d /etc/samba
-sudo nano /etc/samba/media-stack.cred
-```
+`unrar` is a must for many Usenet downloads. `ffmpeg` is also a must for reliable media probing and imports.
 
-Example:
-
-```ini
-username=media-docker
-password=REPLACE_WITH_WINDOWS_PASSWORD
-domain=WORKGROUP
-```
-
-Secure it:
-
-```bash
-sudo chmod 600 /etc/samba/media-stack.cred
-```
-
-Add the entries from [fstab-smb-example.txt](outputs/fstab-smb-example.txt) to `/etc/fstab`.
-
-Test:
-
-```bash
-sudo systemctl daemon-reload
-sudo mount -a
-findmnt /mnt/media/cinema
-findmnt /mnt/media/adult
-touch /mnt/media/cinema/.docker-write-test
-touch /mnt/media/adult/.docker-write-test
-rm /mnt/media/cinema/.docker-write-test /mnt/media/adult/.docker-write-test
-```
-
-Create download folders:
-
-```bash
-mkdir -p /mnt/media/cinema/{movies,series,music,.recyclebin}
-mkdir -p /mnt/media/cinema/downloads/{intermediate,completed/{radarr,sonarr,lidarr}}
-mkdir -p /mnt/media/adult/{movies,adultseries,.recyclebin}
-mkdir -p /mnt/media/adult/downloads/completed/{whisparrv3,whisparrv2}
-mkdir -p /mnt/media/adult/movies/import
-```
-
-## 5. Install Native NZBGet
-
-Install NZBGet directly on Debian, not in Docker.
-
-```bash
-sudo apt update
-sudo apt install -y apt-transport-https curl gnupg p7zip-full 7zip ffmpeg
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://nzbgetcom.github.io/nzbgetcom.asc -o /etc/apt/keyrings/nzbgetcom.asc
-sudo chmod a+r /etc/apt/keyrings/nzbgetcom.asc
-echo "deb [arch=all signed-by=/etc/apt/keyrings/nzbgetcom.asc] https://nzbgetcom.github.io/deb stable main" | sudo tee /etc/apt/sources.list.d/nzbgetcom.list
-sudo apt update
-sudo apt install -y nzbget
-sudo systemctl enable --now nzbget
-```
-
-Install and verify unpack/media tools. This is not optional: `unrar` is required for many Usenet RAR releases, and `ffmpeg` is required for reliable media probing/import checks. Missing `unrar` made valid NZBs download to 100% and then fail immediately at completion:
-
-```bash
-sudo apt update
-sudo apt install -y unrar 7zip p7zip-full ffmpeg
-which unrar
-which ffmpeg
-unrar
-ffmpeg -version
-sudo systemctl restart nzbget
-```
-
-If `unrar` is not available on Debian 12 Bookworm, enable `contrib`, `non-free`, and `non-free-firmware`.
-
-On fresh Debian 12 installs, do not blindly add duplicate `deb ...` lines to `/etc/apt/sources.list`. Debian often uses this file instead:
+On Debian 12, make sure `/etc/apt/sources.list.d/debian.sources` includes:
 
 ```text
-/etc/apt/sources.list.d/debian.sources
+Components: main contrib non-free non-free-firmware
 ```
 
-Edit it:
-
-```bash
-sudo nano /etc/apt/sources.list.d/debian.sources
-```
-
-If the file is blank, paste this complete Debian 12 Bookworm source definition:
+If `/etc/apt/sources.list.d/debian.sources` is blank, use this complete Bookworm source file:
 
 ```text
 Types: deb
@@ -227,84 +119,81 @@ Components: main contrib non-free non-free-firmware
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 ```
 
-Change each Debian `Components:` line from:
-
-```text
-Components: main
-```
-
-to:
-
-```text
-Components: main contrib non-free non-free-firmware
-```
+If `apt update` complains about duplicate Debian entries, comment out every active `deb` line in `/etc/apt/sources.list` and keep the real Debian repo definition in `/etc/apt/sources.list.d/debian.sources`.
 
 Then run:
 
 ```bash
 sudo apt update
 sudo apt install -y unrar 7zip p7zip-full ffmpeg
+which unrar
+ffmpeg -version
 sudo systemctl restart nzbget
 ```
 
-If `apt update` complains about duplicate entries, remove or comment the duplicate lines you added to `/etc/apt/sources.list`. Keep one source style only: either the Debian 12 `.sources` file or old-style `deb ...` lines, not both.
+### 4. Create SMB Credentials
 
-Recommended final Debian 12 layout:
-
-```bash
-sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak
-sudo nano /etc/apt/sources.list
-```
-
-Comment out every active `deb` line in `/etc/apt/sources.list`, or leave the file empty. Then save the real Debian repo configuration in:
-
-```text
-/etc/apt/sources.list.d/debian.sources
-```
-
-After that, `apt update` should no longer warn that targets are configured multiple times.
-
-In NZBGet, confirm unpacking is enabled:
-
-```text
-Settings -> Unpack -> Unpack = yes
-```
-
-Make sure NZBGet listens where Docker containers can reach it:
-
-Preferred method: use the NZBGet Web UI, because it writes to the real active config file:
-
-```text
-Settings -> Security -> ControlIP -> 0.0.0.0
-Save all changes
-```
-
-If you prefer editing the file directly, find the real active config first. Do not blindly create `/etc/nzbget.conf`; if that file opens blank, close it without saving.
+Create a credentials file for the Windows storage shares:
 
 ```bash
-sudo systemctl show nzbget -p ExecStart --value
-ps -eo user,group,args | grep '[n]zbget'
-sudo find /etc /opt /var/lib /usr/local -iname 'nzbget.conf' -type f 2>/dev/null
+sudo nano /etc/samba/media-stack.cred
 ```
 
-Edit the config file shown by the service/process/find command, then set:
+Use:
 
 ```text
-ControlIP=0.0.0.0
+username=YOUR_WINDOWS_USER
+password=YOUR_WINDOWS_PASSWORD
+domain=WORKGROUP
 ```
 
-Restart and verify:
+Secure it:
 
 ```bash
-sudo systemctl restart nzbget
-sudo ss -ltnp | grep ':6789'
+sudo chmod 600 /etc/samba/media-stack.cred
 ```
 
-You want to see:
+### 5. Mount The Windows Shares
+
+Edit fstab:
+
+```bash
+sudo nano /etc/fstab
+```
+
+Add entries based on the example in:
 
 ```text
-0.0.0.0:6789
+/opt/media-stack/fstab-smb-example.txt
 ```
+
+The expected mounts are:
+
+```text
+//192.168.137.110/cinema  /mnt/media/cinema
+//192.168.137.110/adult   /mnt/media/adult
+```
+
+Mount and verify:
+
+```bash
+sudo systemctl daemon-reload
+sudo mount -a
+findmnt /mnt/media/cinema
+findmnt /mnt/media/adult
+```
+
+### 6. Create Media And Download Folders
+
+```bash
+mkdir -p /mnt/media/cinema/{movies,series,music,.recyclebin}
+mkdir -p /mnt/media/cinema/downloads/{intermediate,completed/{radarr,sonarr,lidarr}}
+mkdir -p /mnt/media/adult/{movies,adultseries,.recyclebin}
+mkdir -p /mnt/media/adult/downloads/completed/{whisparrv3,whisparrv2}
+mkdir -p /mnt/media/adult/movies/import
+```
+
+### 7. Configure Native NZBGet
 
 Open NZBGet:
 
@@ -314,97 +203,14 @@ http://DEBIAN_SERVER_IP:6789
 
 Change the default password immediately.
 
-## 6. Fix Firewall for Docker to NZBGet
-
-This was the issue that caused Arr tests to hang.
-
-```bash
-sudo ufw allow in on docker0 to any port 6789 proto tcp
-sudo ufw reload
-```
-
-If the Arr app still hangs when testing NZBGet, use the Docker network gateway directly. In this working setup, Radarr started working when the NZBGet host was set to:
+Set:
 
 ```text
-172.18.0.1
+Settings -> Security -> ControlIP -> 0.0.0.0
+Settings -> Unpack -> Unpack -> yes
 ```
 
-Find the gateway for the Compose network:
-
-If this says `network media not found`, the stack has not created the network yet. Create it by starting the stack:
-
-```bash
-cd /opt/media-stack
-docker compose up -d
-```
-
-Do not create the `media` network manually with `docker network create`. Docker Compose needs to create it so the correct Compose labels are attached.
-
-If you already created it manually, Compose may fail with:
-
-```text
-network media was found but has incorrect label com.docker.compose.network set to "" (expected: "media")
-```
-
-Fix that by removing the manually-created network, then let Compose recreate it:
-
-```bash
-docker network rm media
-cd /opt/media-stack
-docker compose up -d
-```
-
-If Docker says the network has active endpoints, stop anything attached first:
-
-```bash
-docker ps --filter network=media
-cd /opt/media-stack
-docker compose down
-docker network rm media
-docker compose up -d
-```
-
-This project pins the Compose `media` network to:
-
-```text
-Subnet:  172.18.0.0/16
-Gateway: 172.18.0.1
-```
-
-```bash
-docker network inspect media -f '{{(index .IPAM.Config 0).Gateway}}'
-```
-
-Example result:
-
-```text
-172.18.0.1
-```
-
-Also find the subnet:
-
-```bash
-docker network inspect media -f '{{(index .IPAM.Config 0).Subnet}}'
-```
-
-Example result:
-
-```text
-172.18.0.0/16
-```
-
-Allow that subnet to reach native NZBGet:
-
-```bash
-sudo ufw allow from 172.18.0.0/16 to any port 6789 proto tcp
-sudo ufw reload
-```
-
-Replace `172.18.0.0/16` with whatever your server returns. The important lesson: `host.docker.internal` may resolve but still hang. The Docker network gateway IP, `172.18.0.1` in this setup, was the reliable fix.
-
-## 7. Configure NZBGet Categories
-
-In NZBGet, set paths:
+Set paths:
 
 ```text
 MainDir:  /mnt/media/cinema/downloads
@@ -412,7 +218,7 @@ InterDir: /mnt/media/cinema/downloads/intermediate
 DestDir:  /mnt/media/cinema/downloads/completed
 ```
 
-Categories:
+Set categories:
 
 ```text
 radarr      -> /mnt/media/cinema/downloads/completed/radarr
@@ -422,112 +228,25 @@ whisparrv3  -> /mnt/media/adult/downloads/completed/whisparrv3
 whisparrv2  -> /mnt/media/adult/downloads/completed/whisparrv2
 ```
 
-## 8. Start the Arr Stack
-
-This project is meant to be installed from GitHub, not copied by hand from a local Codex folder.
-
-On Debian, install `git` and clone the repository:
+Restart and verify the listener:
 
 ```bash
-sudo apt update
-sudo apt install -y git
-cd /tmp
-git clone https://github.com/DisturbedMind/arr-media-stack-debian.git
-cd arr-media-stack-debian
-```
-
-Replace this placeholder with the real GitHub repository URL:
-
-```text
-https://github.com/DisturbedMind/arr-media-stack-debian.git
-```
-
-Run the installer:
-
-```bash
-chmod +x scripts/install-debian.sh
-./scripts/install-debian.sh
-```
-
-The installer stages these files into `/opt/media-stack`:
-
-```text
-compose/native-nzbget.yml       -> /opt/media-stack/compose.yml
-examples/media-stack.env.example -> /opt/media-stack/.env
-caddy/Caddyfile                 -> /opt/media-stack/caddy/Caddyfile
-examples/fstab-smb-example.txt  -> /opt/media-stack/fstab-smb-example.txt
-```
-
-The installer also installs/stages the important Debian pieces:
-
-```text
-Docker Engine and Compose plugin
-native NZBGet
-ffmpeg
-unrar, when Debian non-free repos are available
-cifs-utils for SMB mounts
-Caddy container config
-```
-
-The installer does not write your SMB password and does not edit `/etc/fstab` automatically. Do those manually:
-
-```bash
-sudo nano /etc/samba/media-stack.cred
-sudo nano /etc/fstab
-sudo systemctl daemon-reload
-sudo mount -a
-findmnt /mnt/media/cinema
-findmnt /mnt/media/adult
-```
-
-Use the fstab example staged by the installer:
-
-```bash
-cat /opt/media-stack/fstab-smb-example.txt
-```
-
-Before starting the stack, confirm NZBGet listens on all interfaces:
-
-Preferred: set it in the NZBGet Web UI:
-
-```text
-Settings -> Security -> ControlIP -> 0.0.0.0
-Save all changes
-```
-
-If editing by hand, locate the active config first. Do not create a blank `/etc/nzbget.conf`.
-
-```bash
-sudo systemctl show nzbget -p ExecStart --value
-ps -eo user,group,args | grep '[n]zbget'
-sudo find /etc /opt /var/lib /usr/local -iname 'nzbget.conf' -type f 2>/dev/null
 sudo systemctl restart nzbget
 sudo ss -ltnp | grep ':6789'
 ```
 
-You want:
+You want NZBGet listening on:
 
 ```text
 0.0.0.0:6789
 ```
 
-Start the stack after SMB mounts and NZBGet are ready:
+### 8. Start The Docker Stack
 
 ```bash
 cd /opt/media-stack
-docker compose config
-docker compose pull
 docker compose up -d
 docker compose ps
-```
-
-The included Docker Caddy service is opt-in. Normal `docker compose up -d` starts the Arr containers only and does not bind port `80`.
-
-Or run the installer with `--start` once the manual mount/NZBGet steps are done:
-
-```bash
-cd /tmp/arr-media-stack-debian
-./scripts/install-debian.sh --start
 ```
 
 Direct app URLs:
@@ -541,648 +260,36 @@ Whisparr v2: http://DEBIAN_SERVER_IP:6970
 NZBGet:      http://DEBIAN_SERVER_IP:6789
 ```
 
-These direct URLs assume the Arr app `URL Base` fields are blank. If you later set `URL Base` for path-based Caddy access, the direct URLs also need the path, for example `http://DEBIAN_SERVER_IP:7878/radarr/`.
-## 9. Caddy Reverse Proxy
+### 9. Allow Docker To Reach Native NZBGet
 
-Caddy can be wired in two different ways with this stack:
-
-```text
-Preferred Caddyfile layout for this install:
-Hostname-based wolf.den routes through your existing Caddy.
-
-Optional:
-Internal Docker Caddy using the official caddy:2-alpine image.
-```
-
-For the current setup, use Option C as the Caddyfile layout. Keep your existing Caddy install, service, or container exactly as it is; only adapt its Caddyfile. The internal Docker Caddy service in this repo is kept as an optional profile only, so it does not take port `80` from your normal Caddy.
-
-You have three clean choices:
+The working fix for this install was to use the Docker Compose network gateway:
 
 ```text
-Option A: Path-based Caddy
-Use http://DEBIAN_SERVER_IP/radarr/
-Requires Arr URL Base values like /radarr.
-Plain direct-port URLs change to http://DEBIAN_SERVER_IP:7878/radarr/.
-
-Option B: Direct ports, or hostname-based Caddy
-Use http://DEBIAN_SERVER_IP:7878/ directly, or names like http://radarr.media.home.arpa/.
-Keep every Arr URL Base blank.
-This is usually less confusing while you are still testing downloads and imports.
-
-Option C: Hostname-based wolf.den Caddyfile
-Use names like http://radarr.wolf.den/ through your existing Caddy server.
-Keep every Arr URL Base blank.
-This is the recommended Caddyfile layout for the current install.
+172.18.0.1
 ```
 
-Option C means:
-
-```text
-DNS names point to the Caddy server IP.
-Caddy reverse_proxy points to the ARR stack IP and app ports.
-Arr URL Base fields stay blank.
-Arr download-client Host stays 172.18.0.1 for native NZBGet.
-Leave the repo's internal Docker Caddy profile off unless you intentionally choose it.
-Manage/reload Caddy the same way you already manage your Caddy.
-```
-
-On this install, the Caddy server moved to `192.168.137.253` and the DNS zone is `wolf.den`. Use this current file:
-
-```text
-caddy/Caddyfile.external-wolf.den.example
-```
-
-It expects these DNS records:
-
-```text
-radarr.wolf.den       -> 192.168.137.253
-sonarr.wolf.den       -> 192.168.137.253
-lidarr.wolf.den       -> 192.168.137.253
-whisparrv3.wolf.den   -> 192.168.137.253
-whisparrv2.wolf.den   -> 192.168.137.253
-nzbget.wolf.den       -> 192.168.137.253
-```
-
-If only `radarr.wolf.den` works, check all three layers:
+Allow the Compose subnet to reach NZBGet:
 
 ```bash
-# 1. DNS should return 192.168.137.253 for every name.
-for app in radarr sonarr lidarr whisparrv3 whisparrv2 nzbget; do getent hosts "$app.wolf.den"; done
-
-# 2. Caddyfile should contain every wolf.den hostname.
-grep -E 'radarr|sonarr|lidarr|whisparrv3|whisparrv2|nzbget' /etc/caddy/Caddyfile
-
-# 3. From the Caddy server, the backends should answer on their ports.
-curl -I http://ARR_STACK_IP:7878
-curl -I http://ARR_STACK_IP:8989
-curl -I http://ARR_STACK_IP:8686
-curl -I http://ARR_STACK_IP:6969
-curl -I http://ARR_STACK_IP:6970
-curl -I http://ARR_STACK_IP:6789
-```
-
-Replace `ARR_STACK_IP` with the Debian ARR stack IP, or use `127.0.0.1` if Caddy and the ARR stack are on the same machine.
-
-If the browser says `connection refused` for `http://radarr.wolf.den`, troubleshoot Caddy itself first. That error usually means nothing is listening on `192.168.137.253:80`, or the Caddy server firewall is rejecting port `80`.
-
-Run this on the Caddy server:
-
-```bash
-getent hosts radarr.wolf.den
-sudo systemctl status caddy --no-pager
-sudo ss -ltnp | grep ':80'
-sudo journalctl -u caddy -n 80 --no-pager
-sudo ufw status verbose
-```
-
-Good signs:
-
-```text
-radarr.wolf.den resolves to 192.168.137.253
-caddy.service is active/running
-ss shows caddy listening on 0.0.0.0:80 or [::]:80
-```
-
-If Caddy is not running:
-
-```bash
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl restart caddy
-sudo journalctl -u caddy -n 80 --no-pager
-```
-
-If Caddy is running but port `80` is blocked by UFW:
-
-```bash
-sudo ufw allow from 192.168.137.0/24 to any port 80 proto tcp
+sudo ufw allow from 172.18.0.0/16 to any port 6789 proto tcp
 sudo ufw reload
 ```
 
-From another machine on the LAN, test:
-
-```bash
-curl -I http://radarr.wolf.den
-```
-
-If Caddy is running and `http://192.168.137.253` responds, but `http://radarr.wolf.den` does not, split DNS from Caddy with a Host-header test.
-
-Run this on the Caddy server:
-
-```bash
-curl -I -H 'Host: radarr.wolf.den' http://127.0.0.1
-curl -I -H 'Host: sonarr.wolf.den' http://127.0.0.1
-curl -I -H 'Host: lidarr.wolf.den' http://127.0.0.1
-curl -I -H 'Host: whisparrv3.wolf.den' http://127.0.0.1
-curl -I -H 'Host: whisparrv2.wolf.den' http://127.0.0.1
-curl -I -H 'Host: nzbget.wolf.den' http://127.0.0.1
-```
-
-If those work from the Caddy server, Caddy is matching the hostnames correctly and the problem is on the client/DNS side. On a Windows client, check:
-
-```powershell
-nslookup radarr.wolf.den
-nslookup sonarr.wolf.den
-Resolve-DnsName radarr.wolf.den
-curl.exe -v --resolve radarr.wolf.den:80:192.168.137.253 http://radarr.wolf.den/
-ipconfig /flushdns
-```
-
-The `--resolve` test bypasses DNS. If it works but normal browsing does not, your client is not using the DNS records you created, or it has a stale DNS cache.
-
-If the `--resolve` test still says `Connection refused`, DNS is not the problem. Your client is reaching `192.168.137.253`, but port `80` is not accepting the connection from the LAN.
-
-Run these on the Caddy server:
-
-```bash
-ip -br addr
-sudo systemctl status caddy --no-pager
-sudo ss -ltnp '( sport = :80 )'
-sudo ss -4ltnp '( sport = :80 )'
-sudo ss -6ltnp '( sport = :80 )'
-sudo grep -nE 'bind|wolf.den|reverse_proxy|:80' /etc/caddy/Caddyfile
-curl -v -H 'Host: radarr.wolf.den' http://127.0.0.1/
-curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
-```
-
-Read the result like this:
-
-```text
-127.0.0.1 works, 192.168.137.253 fails:
-Caddy is bound only to localhost or the server does not actually own 192.168.137.253.
-
-Both 127.0.0.1 and 192.168.137.253 work on the Caddy server, but Windows still refuses:
-The block is between Windows and the Caddy server. Check the Caddy server firewall, host firewall, VM/NAT rules, or the Windows network path.
-
-Neither works:
-Caddy is running as a service but is not listening correctly on port 80, or the Caddyfile did not load.
-```
-
-If `ss` shows Caddy listening only on `127.0.0.1:80`, remove any localhost-only bind:
-
-```bash
-sudo sed -i '/^[[:space:]]*bind /d' /etc/caddy/Caddyfile
-sudo caddy fmt --overwrite /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl restart caddy
-```
-
-Then confirm Caddy is listening on the LAN:
-
-```bash
-sudo ss -ltnp '( sport = :80 )'
-curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
-```
-
-If `ip -br addr` does not show `192.168.137.253` on a network interface, fix the server IP first or change DNS to the IP the Caddy server actually owns.
-
-`docker0` being `DOWN` does not explain this specific symptom. A localhost `200` with a LAN-IP failure happens at the Caddy listener/network layer before Docker is involved. Docker matters later, when Caddy proxies to the Arr backend ports.
-
-If `ss` shows Caddy listening on `*:80`, check IPv4 specifically:
-
-```bash
-sudo ss -4ltnp '( sport = :80 )'
-sudo ss -6ltnp '( sport = :80 )'
-```
-
-If `ss -6` shows Caddy but `ss -4` shows nothing, Caddy is only listening on IPv6. Force an IPv4 listener by using an explicit `:80` site address in `/etc/caddy/Caddyfile` and removing any `bind` lines:
-
-```bash
-sudo sed -i '/^[[:space:]]*bind /d' /etc/caddy/Caddyfile
-sudo sed -i 's/^http:\/\/radarr\.wolf\.den/:80/' /etc/caddy/Caddyfile
-sudo caddy fmt --overwrite /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl restart caddy
-sudo ss -4ltnp '( sport = :80 )'
-```
-
-Only do that quick test temporarily, because it makes one catch-all site. If it fixes IPv4 access, rebuild the Caddyfile using a single `:80` site with host matchers.
-
-If `ss -4` shows Caddy on `*:80`, Caddy is listening on IPv4 all local interfaces. The next split is:
-
-```bash
-curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
-```
-
-If that works on floki but Windows still gets `Connection refused`, stop changing Caddy. The remaining block is outside Caddy: host firewall rules, Proxmox/VM bridge rules, router ACLs, Windows network profile/firewall, or the client not actually being on the same reachable subnet.
-
-Also make sure the browser is using plain HTTP, not HTTPS:
-
-```text
-http://radarr.wolf.den/
-```
-
-This stack is configured as internal HTTP. Do not use `https://radarr.wolf.den/` unless you deliberately add TLS later.
-
-The download client settings do not change in any option. The Arr apps should still connect to native NZBGet at `172.18.0.1:6789` with download-client `Url Base` blank.
-
-If your Caddy server is external on `192.168.137.251`, use:
-
-```text
-caddy/Caddyfile.external-192.168.137.251.example
-```
-
-For the current `wolf.den` setup on `192.168.137.253`, use:
-
-```text
-caddy/Caddyfile.external-wolf.den.example
-```
-
-In that file, replace `ARR_STACK_IP` with the Debian server IP that runs Docker and NZBGet. If Caddy runs on the same Debian server as the stack, use `127.0.0.1`.
-
-Use the `wolf.den` Caddyfile with the Caddy you already run. The commands below show the common native Debian Caddy path. If your Caddy is managed another way, such as Docker, a custom service, or another host, copy the same Caddyfile content into that Caddy and reload it using your normal method.
-
-Only check/install native Debian Caddy if you actually want Caddy managed by `systemd` on this machine:
-
-```bash
-systemctl status caddy --no-pager
-command -v caddy
-```
-
-If `systemctl` says `Unit caddy.service not found`, that only means this machine is not running native Debian Caddy. That is fine if your Caddy already runs another way. Install the official Caddy Debian package only if you want native Debian Caddy:
-
-Before installing, make sure you are on the Caddy server, not just the ARR stack server:
-
-```bash
-hostname
-ip -br addr
-```
-
-For the `wolf.den` Caddyfile layout, run any Caddy service commands on the machine that actually runs Caddy. In the current notes, the DNS target is `192.168.137.253`. If you are on a different machine, `caddy.service not found` may be completely normal there.
-
-```bash
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-sudo chmod o+r /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update
-sudo apt install -y caddy
-```
-
-After that, `systemctl status caddy` should work. If you kept your existing non-systemd Caddy, skip this native install block.
-
-Then install or adapt this project's Caddyfile. Run these copy commands from the cloned GitHub repo, not from `/etc/caddy` or `/opt/media-stack`. If your Caddy is not native Debian Caddy, copy the example into the config location used by your Caddy and reload it using your normal Caddy management method.
-
-For the current `wolf.den` setup:
-
-```bash
-cd /tmp/arr-media-stack-debian
-git pull
-ls -l caddy/Caddyfile.external-wolf.den.example
-sudo cp caddy/Caddyfile.external-wolf.den.example /etc/caddy/Caddyfile
-ARR_STACK_IP="PUT_THE_DEBIAN_ARR_STACK_IP_HERE"
-sudo sed -i "s/ARR_STACK_IP/${ARR_STACK_IP}/g" /etc/caddy/Caddyfile
-sudo caddy fmt --overwrite /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
-
-If you do not use native Debian Caddy, replace the final `systemctl reload caddy` with your existing reload/restart command.
-
-For the older `media.home.arpa` example:
-
-```bash
-cd /tmp/arr-media-stack-debian
-git pull
-ls -l caddy/Caddyfile.external-192.168.137.251.example
-sudo cp caddy/Caddyfile.external-192.168.137.251.example /etc/caddy/Caddyfile
-ARR_STACK_IP="PUT_THE_DEBIAN_ARR_STACK_IP_HERE"
-sudo sed -i "s/ARR_STACK_IP/${ARR_STACK_IP}/g" /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
-
-Again, if your Caddy is not a native Debian service, reload it the way you normally reload Caddy.
-
-If `ls` says the file does not exist, you are either in the wrong folder or the repo is old. Find the repo copy with:
-
-```bash
-sudo find /tmp /opt /root "$HOME" -path '*/caddy/Caddyfile.external-wolf.den.example' -type f 2>/dev/null
-sudo find /tmp /opt /root "$HOME" -path '*/caddy/Caddyfile.external-192.168.137.251.example' -type f 2>/dev/null
-```
-
-If nothing is returned, download a fresh copy:
-
-```bash
-cd /tmp
-rm -rf arr-media-stack-debian
-git clone https://github.com/DisturbedMind/arr-media-stack-debian.git
-cd /tmp/arr-media-stack-debian
-```
-
-Replace `PUT_THE_DEBIAN_ARR_STACK_IP_HERE` with the real Debian ARR stack IP before running it. If Caddy and the ARR stack are on the same Debian machine, use this instead:
-
-```bash
-sudo sed -i 's/ARR_STACK_IP/127.0.0.1/g' /etc/caddy/Caddyfile
-```
-
-For the older `media.home.arpa` example, point these LAN DNS names to `192.168.137.251`:
-
-```text
-radarr.media.home.arpa
-sonarr.media.home.arpa
-lidarr.media.home.arpa
-whisparrv3.media.home.arpa
-whisparrv2.media.home.arpa
-nzbget.media.home.arpa
-```
-
-Then browse to:
-
-```text
-Radarr:      http://radarr.media.home.arpa/
-Sonarr:      http://sonarr.media.home.arpa/
-Lidarr:      http://lidarr.media.home.arpa/
-Whisparr v3: http://whisparrv3.media.home.arpa/
-Whisparr v2: http://whisparrv2.media.home.arpa/
-NZBGet:      http://nzbget.media.home.arpa/
-```
-
-With this external Caddy layout, keep all Arr `URL Base` fields blank.
-
-Do not use `172.18.0.1` in the external Caddyfile. `172.18.0.1` is only for Docker containers talking back to native NZBGet. Your external Caddy server must proxy to the Debian server LAN IP.
-
-If Caddy fails with `bind: cannot assign requested address`, the Caddyfile is trying to listen on an IP address that the Caddy machine does not own. Check the server IPs:
-
-```bash
-ip -br addr
-```
-
-For this guide's external hostname Caddyfile, the best fix is to remove any `bind 192.168.137.x` lines:
-
-```bash
-sudo sed -i '/^[[:space:]]*bind 192\\.168\\.137\\./d' /etc/caddy/Caddyfile
-sudo caddy fmt --overwrite /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl restart caddy
-```
-
-If you really want to bind Caddy to one IP only, that IP must appear in `ip -br addr` on the Caddy server. For example, do not bind to `192.168.137.253` if the server is actually `192.168.137.251`.
-
-If restarting Caddy shows port `80` is already owned by `docker-proxy`, the internal Docker Caddy container is still running. Stop and remove it:
-
-```bash
-docker ps --format 'table {{.Names}}\t{{.Ports}}' | grep ':80->'
-cd /opt/media-stack
-docker compose stop caddy
-docker compose rm -f caddy
-sudo systemctl restart caddy
-```
-
-If the container was created outside Compose, remove it by name:
-
-```bash
-docker stop caddy
-docker rm caddy
-sudo systemctl restart caddy
-```
-
-If `systemctl restart caddy` still says `Unit caddy.service not found`, do not keep retrying restart. Either you are not on the machine that runs native Caddy, or your Caddy is managed another way. Option C does not require native Caddy; it only describes the hostname-based Caddyfile layout. Use your existing Caddy reload method instead.
-
-On the Debian ARR stack server, allow the Caddy server to reach the app ports:
-
-```bash
-sudo ufw allow from 192.168.137.253 to any port 7878 proto tcp
-sudo ufw allow from 192.168.137.253 to any port 8989 proto tcp
-sudo ufw allow from 192.168.137.253 to any port 8686 proto tcp
-sudo ufw allow from 192.168.137.253 to any port 6969 proto tcp
-sudo ufw allow from 192.168.137.253 to any port 6970 proto tcp
-sudo ufw allow from 192.168.137.253 to any port 6789 proto tcp
-sudo ufw reload
-```
-
-If you do not want LAN DNS names and Caddy really runs on a different IP from the ARR stack, you can use the port-mirror example instead:
-
-```text
-caddy/Caddyfile.external-port-mirror-192.168.137.251.example
-```
-
-That gives you URLs like `http://192.168.137.251:7878/`, but do not use it if Caddy and the ARR stack are on the same host/IP, because the ports will conflict.
-
-The internal Docker Caddy service is included but disabled by default through a Compose profile:
-
-```text
-compose/native-nzbget.yml
-```
-
-Normal stack startup does not start it:
-
-```bash
-docker compose up -d
-```
-
-To start the internal Docker Caddy service anyway:
-
-```bash
-docker compose --profile internal-caddy up -d caddy
-```
-
-The Caddy config is:
-
-```text
-caddy/Caddyfile
-```
-
-That file is the path-based Caddy config. A no-URL-Base hostname example is also included here:
-
-```text
-caddy/Caddyfile.hostnames.example
-```
-
-For the current `wolf.den` setup with the optional Docker Caddy container, use this file instead:
-
-```text
-caddy/Caddyfile.internal-wolf.den.example
-```
-
-This is different from the external Caddyfile. The internal Docker Caddyfile proxies to Docker service names like `radarr:7878`, while native NZBGet is reached at `172.18.0.1:6789`.
-
-For an already-running external Caddy server at `192.168.137.251`, prefer:
-
-```text
-caddy/Caddyfile.external-192.168.137.251.example
-```
-
-On the Debian server, the live Caddy paths are:
-
-```text
-/opt/media-stack/caddy/Caddyfile
-/opt/media-stack/caddy/data
-/opt/media-stack/caddy/config
-```
-
-Before starting Caddy, check whether something else is already using port `80`:
-
-```bash
-sudo ss -ltnp | grep ':80'
-```
-
-If nothing is returned, port `80` is free. If another service is using it, either stop that service or change the Caddy port mapping in `compose.yml`.
-
-Install the Caddy config into the stack folder:
-
-```bash
-cd /opt/media-stack
-mkdir -p /opt/media-stack/caddy/data /opt/media-stack/caddy/config
-cp caddy/Caddyfile /opt/media-stack/caddy/Caddyfile
-```
-
-For the current `wolf.den` hostname setup, use this instead:
-
-```bash
-cd /opt/media-stack
-mkdir -p /opt/media-stack/caddy/data /opt/media-stack/caddy/config
-cp caddy/Caddyfile.internal-wolf.den.example /opt/media-stack/caddy/Caddyfile
-```
-
-Start internal Docker Caddy:
-
-```bash
-cd /opt/media-stack
-docker compose --profile internal-caddy up -d caddy
-docker compose logs --tail=100 caddy
-```
-
-Validate that Caddy is listening:
-
-```bash
-docker compose ps caddy
-curl -I http://127.0.0.1/
-```
-
-If you choose Option A, use these browser URLs:
-
-```text
-Radarr:      http://DEBIAN_SERVER_IP/radarr/
-Sonarr:      http://DEBIAN_SERVER_IP/sonarr/
-Lidarr:      http://DEBIAN_SERVER_IP/lidarr/
-Whisparr v3: http://DEBIAN_SERVER_IP/whisparrv3/
-Whisparr v2: http://DEBIAN_SERVER_IP/whisparrv2/
-NZBGet:      http://DEBIAN_SERVER_IP/nzbget/
-```
-
-Test the path routes from Debian:
-
-```bash
-curl -I http://127.0.0.1/radarr/
-curl -I http://127.0.0.1/sonarr/
-curl -I http://127.0.0.1/lidarr/
-curl -I http://127.0.0.1/whisparrv3/
-curl -I http://127.0.0.1/whisparrv2/
-curl -I http://127.0.0.1/nzbget/
-```
-
-Open port `80` only to the internal LAN:
-
-```bash
-sudo ufw allow from 192.168.137.0/24 to any port 80 proto tcp
-sudo ufw reload
-```
-
-The Caddy config lives at:
-
-```text
-/opt/media-stack/caddy/Caddyfile
-```
-
-Project copy:
-
-```text
-caddy/Caddyfile
-```
-
-For Option A only, set URL Base inside each Arr app:
-
-```text
-Radarr:      Settings -> General -> URL Base: /radarr
-Sonarr:      Settings -> General -> URL Base: /sonarr
-Lidarr:      Settings -> General -> URL Base: /lidarr
-Whisparr v3: Settings -> General -> URL Base: /whisparrv3
-Whisparr v2: Settings -> General -> URL Base: /whisparrv2
-```
-
-Then restart the containers:
-
-```bash
-cd /opt/media-stack
-docker compose restart radarr sonarr lidarr whisparrv3 whisparrv2
-docker compose --profile internal-caddy restart caddy
-```
-
-Important: these Arr URL Base settings are only for browser access through path-based Caddy. They are not download-client settings.
-
-Once you set an Arr `URL Base`, plain direct-port access without that base path will no longer behave correctly. Use these direct-port URLs instead:
-
-```text
-Radarr:      http://DEBIAN_SERVER_IP:7878/radarr/
-Sonarr:      http://DEBIAN_SERVER_IP:8989/sonarr/
-Lidarr:      http://DEBIAN_SERVER_IP:8686/lidarr/
-Whisparr v3: http://DEBIAN_SERVER_IP:6969/whisparrv3/
-Whisparr v2: http://DEBIAN_SERVER_IP:6970/whisparrv2/
-```
-
-If you want the simple direct-port URLs to keep working, leave every Arr `URL Base` blank and skip the path-based Caddy URLs. You can still use direct ports, or switch to hostname-based Caddy with `caddy/Caddyfile.hostnames.example` and LAN DNS/hosts entries pointing those names to `DEBIAN_SERVER_IP`.
-
-NZBGet is native on Debian and does not need to know about Caddy for the Arr apps to work. Caddy proxies `/nzbget/` to:
-
-```text
-172.18.0.1:6789
-```
-
-If your Docker network gateway is different, update the `reverse_proxy` line in `/opt/media-stack/caddy/Caddyfile` using:
-
-If this command says `network media not found`, run `docker compose up -d` from `/opt/media-stack` first. The `media` network is created by Docker Compose.
-
-If Docker says the network exists but has an incorrect `com.docker.compose.network` label, it was probably created manually. Remove it and let Compose recreate it:
-
-```bash
-docker network rm media
-cd /opt/media-stack
-docker compose up -d
-```
-
-If Docker says the network has active endpoints, stop anything attached first:
-
-```bash
-docker ps --filter network=media
-cd /opt/media-stack
-docker compose down
-docker network rm media
-docker compose up -d
-```
+Confirm the gateway:
 
 ```bash
 docker network inspect media -f '{{(index .IPAM.Config 0).Gateway}}'
 ```
 
-Then reload Caddy:
-
-```bash
-docker exec caddy caddy reload --config /etc/caddy/Caddyfile
-```
-
-If the NZBGet web UI behaves strangely through `/nzbget/`, use the direct internal URL for NZBGet instead:
+Expected:
 
 ```text
-http://DEBIAN_SERVER_IP:6789
+172.18.0.1
 ```
 
-Do not let a reverse proxy problem block downloads. The Arr apps should still connect to NZBGet directly on `172.18.0.1:6789`.
+### 10. Configure Arr Download Clients
 
-Useful internal Docker Caddy commands:
-
-```bash
-cd /opt/media-stack
-docker compose --profile internal-caddy up -d caddy
-docker compose logs -f caddy
-docker compose --profile internal-caddy restart caddy
-docker exec caddy caddy validate --config /etc/caddy/Caddyfile
-docker exec caddy caddy reload --config /etc/caddy/Caddyfile
-```
-
-## 10. Configure Arr Download Clients
-
-In every Arr app:
+In every Arr app, add NZBGet:
 
 ```text
 Host: 172.18.0.1
@@ -1191,10 +298,9 @@ Use SSL: unchecked
 Url Base: blank
 Username: nzbget
 Password: your NZBGet password
-Category: app-specific category
 ```
 
-Categories:
+Use these categories:
 
 ```text
 Radarr:      radarr
@@ -1204,31 +310,11 @@ Whisparr v3: whisparrv3
 Whisparr v2: whisparrv2
 ```
 
-Do not use `/radarr`, `/sonarr`, `/lidarr`, `/whisparr`, or `/nzbget` in the download client Url Base field.
+Do not put `/radarr`, `/sonarr`, `/lidarr`, `/whisparr`, or `/nzbget` in the download client `Url Base` field. Caddy is for browser access; Arr-to-NZBGet traffic should go directly to `172.18.0.1:6789`.
 
-Even when Caddy is enabled, keep the download-client Url Base blank. Caddy is for your browser, not for Arr-to-NZBGet traffic.
+### 11. Configure Root Folders
 
-Do not put an Arr `URL Base` value into the NZBGet download-client form. These are separate settings with annoyingly similar names:
-
-```text
-Arr app Settings -> General -> URL Base:
-Only needed for path-based Caddy browser access.
-
-Arr app Settings -> Download Clients -> NZBGet -> Url Base:
-Keep blank for this native NZBGet setup.
-```
-
-If your Docker network gateway is not `172.18.0.1`, use the gateway returned by:
-
-```bash
-docker network inspect media -f '{{(index .IPAM.Config 0).Gateway}}'
-```
-
-If `host.docker.internal` works on your server, it is also fine. On this install it made the Arr test hang, and `172.18.0.1` fixed it.
-
-## 11. Configure Root Folders
-
-Recommended root folders:
+Use:
 
 ```text
 Radarr:      /mnt/media/cinema/movies
@@ -1241,63 +327,52 @@ Whisparr v2: /mnt/media/adult/adultseries
 Recycle bins:
 
 ```text
-Radarr/Sonarr/Lidarr:      /mnt/media/cinema/.recyclebin
-Whisparr v3/Whisparr v2:   /mnt/media/adult/.recyclebin
+Radarr/Sonarr/Lidarr:    /mnt/media/cinema/.recyclebin
+Whisparr v3/Whisparr v2: /mnt/media/adult/.recyclebin
 ```
 
-## 12. Remote Path Mappings
+### 12. Configure Remote Path Mappings
 
-Because native NZBGet reports `/mnt/media/...`, use matching paths.
+Because native NZBGet reports `/mnt/media/...`, the remote and local paths should match.
 
-The `Host` field must exactly match the host used in the NZBGet download client. These examples use the working gateway IP:
+The `Host` field must exactly match the NZBGet download client host:
 
 ```text
 172.18.0.1
 ```
 
-Whisparr v3:
+Mappings:
 
 ```text
-Host: 172.18.0.1
+Radarr
+Host:        172.18.0.1
+Remote Path: /mnt/media/cinema/downloads/completed/radarr
+Local Path:  /mnt/media/cinema/downloads/completed/radarr
+
+Sonarr
+Host:        172.18.0.1
+Remote Path: /mnt/media/cinema/downloads/completed/sonarr
+Local Path:  /mnt/media/cinema/downloads/completed/sonarr
+
+Lidarr
+Host:        172.18.0.1
+Remote Path: /mnt/media/cinema/downloads/completed/lidarr
+Local Path:  /mnt/media/cinema/downloads/completed/lidarr
+
+Whisparr v3
+Host:        172.18.0.1
 Remote Path: /mnt/media/adult/downloads/completed/whisparrv3
 Local Path:  /mnt/media/adult/downloads/completed/whisparrv3
-```
 
-Whisparr v2:
-
-```text
-Host: 172.18.0.1
+Whisparr v2
+Host:        172.18.0.1
 Remote Path: /mnt/media/adult/downloads/completed/whisparrv2
 Local Path:  /mnt/media/adult/downloads/completed/whisparrv2
 ```
 
-Radarr:
+### 13. Whisparr v3 Import Folder
 
-```text
-Host: 172.18.0.1
-Remote Path: /mnt/media/cinema/downloads/completed/radarr
-Local Path:  /mnt/media/cinema/downloads/completed/radarr
-```
-
-Sonarr:
-
-```text
-Host: 172.18.0.1
-Remote Path: /mnt/media/cinema/downloads/completed/sonarr
-Local Path:  /mnt/media/cinema/downloads/completed/sonarr
-```
-
-Lidarr:
-
-```text
-Host: 172.18.0.1
-Remote Path: /mnt/media/cinema/downloads/completed/lidarr
-Local Path:  /mnt/media/cinema/downloads/completed/lidarr
-```
-
-## 13. Whisparr v3 Import Folder
-
-Whisparr v3 is awkward compared with Radarr. Use a small staging folder first:
+Whisparr v3 does not import existing movies as smoothly as Radarr. Use a small staging folder first:
 
 ```text
 /mnt/media/adult/movies/import
@@ -1309,36 +384,87 @@ From Windows:
 \\192.168.137.110\adult\movies\import
 ```
 
-Test with a few movies before moving a large library.
+Test with a few movies before pointing Whisparr v3 at a large library.
 
-## 14. Validation Commands
+### 14. Choose Caddy Access
+
+Caddy is optional. Direct ports work without it.
+
+Use one of these layouts:
+
+```text
+Direct ports:
+Use http://DEBIAN_SERVER_IP:7878 and friends.
+Keep every Arr URL Base blank.
+
+Internal Docker Caddy, path-based:
+Use http://DEBIAN_SERVER_IP/radarr/
+Requires Arr URL Base values like /radarr.
+
+Internal Docker Caddy, hostname-based wolf.den:
+Use http://radarr.wolf.den/
+Keep every Arr URL Base blank.
+
+External/native Caddy, hostname-based wolf.den:
+Use http://radarr.wolf.den/
+Keep every Arr URL Base blank.
+```
+
+For the current `wolf.den` setup with Docker Caddy inside this stack:
+
+```bash
+cd /opt/media-stack
+mkdir -p /opt/media-stack/caddy/data /opt/media-stack/caddy/config
+cp /tmp/arr-media-stack-debian/caddy/Caddyfile.internal-wolf.den.example /opt/media-stack/caddy/Caddyfile
+docker compose --profile internal-caddy up -d caddy
+docker compose ps caddy
+docker compose logs --tail=100 caddy
+```
+
+Point DNS records to the Debian server IP that publishes Docker port `80`:
+
+```text
+radarr.wolf.den
+sonarr.wolf.den
+lidarr.wolf.den
+whisparrv3.wolf.den
+whisparrv2.wolf.den
+nzbget.wolf.den
+```
+
+For an already-running external/native Caddy, use:
+
+```text
+caddy/Caddyfile.external-wolf.den.example
+```
+
+Replace `ARR_STACK_IP` with the Debian ARR stack IP. If external Caddy is on the same Debian server as the stack, use `127.0.0.1`. Do not use `172.18.0.1` in an external Caddyfile.
+
+Open port `80` to the LAN:
+
+```bash
+sudo ufw allow from 192.168.137.0/24 to any port 80 proto tcp
+sudo ufw reload
+```
+
+### 15. Validate The Install
 
 Run on Debian:
 
 ```bash
 findmnt /mnt/media/cinema
 findmnt /mnt/media/adult
-docker compose -f /opt/media-stack/compose.yml ps
-```
-
-Check paths inside containers:
-
-```bash
+cd /opt/media-stack
+docker compose ps
 docker exec radarr ls -la /mnt/media/cinema/movies
 docker exec sonarr ls -la /mnt/media/cinema/series
 docker exec lidarr ls -la /mnt/media/cinema/music
 docker exec whisparrv3 ls -la /mnt/media/adult/movies
 docker exec whisparrv2 ls -la /mnt/media/adult/adultseries
-docker exec whisparrv3 ls -la /mnt/media/adult/downloads/completed/whisparrv3
-```
-
-Check NZBGet from inside a container:
-
-```bash
 docker exec lidarr sh -lc 'wget -T 5 -S -O- http://172.18.0.1:6789/jsonrpc 2>&1 | head -80'
 ```
 
-Good signs include:
+Good NZBGet connectivity signs:
 
 ```text
 401 Unauthorized
@@ -1354,17 +480,22 @@ Connection refused
 Could not resolve host
 ```
 
-If an NZB downloads to 100% and then fails instantly, check `unrar` first. Also verify `ffmpeg`, because imports and media checks can fail or behave strangely without it:
+### 16. Back Up App Config
 
-```bash
-which unrar
-sudo apt install -y unrar 7zip p7zip-full ffmpeg
-sudo systemctl restart nzbget
+App configs live under:
+
+```text
+/opt/media-stack/appdata
 ```
 
-That symptom can look like a path problem, but in this setup it was NZBGet failing during unpack because `unrar` was missing.
+Back them up:
 
-## 15. Backups and Safety
+```bash
+cd /opt/media-stack
+docker compose stop
+sudo tar -czf /opt/media-stack/backups/appdata-$(date +%F-%H%M).tgz appdata .env compose.yml
+docker compose up -d
+```
 
 Safe container recreation:
 
@@ -1382,33 +513,219 @@ rm -rf /mnt/media/cinema/*
 rm -rf /mnt/media/adult/*
 ```
 
-Back up app config:
+## Troubleshooting
+
+### Docker Permission Denied
+
+If Docker says permission denied for `/var/run/docker.sock`, either run the command with `sudo` or log out and back in after being added to the `docker` group:
+
+```bash
+sudo usermod -aG docker "$USER"
+```
+
+Then log out and back in.
+
+### NZBGet Test Hangs In Arr Apps
+
+Use:
+
+```text
+Host: 172.18.0.1
+Port: 6789
+Url Base: blank
+```
+
+Also confirm the firewall rule:
+
+```bash
+sudo ufw allow from 172.18.0.0/16 to any port 6789 proto tcp
+sudo ufw reload
+```
+
+`host.docker.internal` may resolve to a `172.x.x.x` address and still hang. On this install, `172.18.0.1` was the reliable fix.
+
+### NZB Downloads To 100 Percent Then Fails
+
+Check `unrar` first:
+
+```bash
+which unrar
+unrar
+sudo apt install -y unrar 7zip p7zip-full ffmpeg
+sudo systemctl restart nzbget
+```
+
+Missing `unrar` can make a good NZB fail immediately after download because NZBGet cannot unpack it. Missing `ffmpeg` can break media probing/import behavior later.
+
+### Blank `/etc/nzbget.conf`
+
+Do not create a new blank config. Find the active config first:
+
+```bash
+sudo systemctl show nzbget -p ExecStart --value
+ps -eo user,group,args | grep '[n]zbget'
+sudo find /etc /opt /var/lib /usr/local -iname 'nzbget.conf' -type f 2>/dev/null
+```
+
+The preferred method is still the NZBGet Web UI:
+
+```text
+Settings -> Security -> ControlIP -> 0.0.0.0
+```
+
+### Debian Apt Duplicate Source Warnings
+
+Use one Debian source style only. For this guide, keep the real Debian repo configuration in:
+
+```text
+/etc/apt/sources.list.d/debian.sources
+```
+
+Comment out duplicate active `deb` lines in:
+
+```text
+/etc/apt/sources.list
+```
+
+Then:
+
+```bash
+sudo apt update
+```
+
+### Docker Network `media` Not Found
+
+Start the stack once so Compose creates the network:
 
 ```bash
 cd /opt/media-stack
-docker compose stop
-sudo tar -czf /opt/media-stack/backups/appdata-$(date +%F-%H%M).tgz appdata .env compose.yml
 docker compose up -d
 ```
 
-## 16. Project Files
+Do not create the `media` network manually.
+
+### Docker Network Has Incorrect Compose Label
+
+If Docker says:
+
+```text
+network media was found but has incorrect label com.docker.compose.network set to "" (expected: "media")
+```
+
+remove the manually-created network and let Compose recreate it:
+
+```bash
+cd /opt/media-stack
+docker compose down
+docker network rm media
+docker compose up -d
+```
+
+### Caddy Service Not Found
+
+If this fails:
+
+```bash
+sudo systemctl restart caddy
+```
+
+with:
+
+```text
+Unit caddy.service could not be found.
+```
+
+then Caddy is not installed as a native Debian service on that machine. That is fine if you chose Docker Caddy.
+
+Check for a Caddy container:
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}' | grep -i caddy
+```
+
+If there is no Caddy container and no native Caddy service, start the internal Docker Caddy profile:
+
+```bash
+cd /opt/media-stack
+cp /tmp/arr-media-stack-debian/caddy/Caddyfile.internal-wolf.den.example /opt/media-stack/caddy/Caddyfile
+docker compose --profile internal-caddy up -d caddy
+docker compose ps caddy
+```
+
+### Caddy Port 80 Already In Use
+
+Check:
+
+```bash
+sudo ss -ltnp | grep ':80'
+```
+
+If `docker-proxy` owns port `80`, a Caddy container is already running. If native Caddy owns it, do not also start Docker Caddy on port `80`.
+
+### Caddy Cannot Assign Requested Address
+
+This means the Caddyfile has a `bind` line for an IP the server does not own.
+
+Check:
+
+```bash
+ip -br addr
+```
+
+For this guide, the safest fix is usually to remove `bind 192.168.137.x` lines and let Caddy listen normally.
+
+### Hostname Works By IP But Not By Name
+
+Check DNS:
+
+```bash
+nslookup radarr.wolf.den
+```
+
+Bypass DNS from Windows:
+
+```powershell
+curl.exe -v --resolve radarr.wolf.den:80:DEBIAN_SERVER_IP http://radarr.wolf.den/
+```
+
+If `--resolve` works but the browser does not, the client is using stale or wrong DNS.
+
+### Browser Uses HTTPS By Mistake
+
+This stack is internal HTTP unless you deliberately add TLS:
+
+```text
+http://radarr.wolf.den/
+```
+
+Do not use:
+
+```text
+https://radarr.wolf.den/
+```
+
+### Whisparr v3 Does Not Import Existing Movies
+
+Use the staging folder:
+
+```text
+/mnt/media/adult/movies/import
+```
+
+Then in Whisparr v3, process the import folder from the UI. Start with a few files before trying a full library.
+
+## Project Files
 
 - [Debian installer](scripts/install-debian.sh)
 - [Native NZBGet Compose](compose/native-nzbget.yml)
 - [Docker NZBGet Compose](compose/docker-nzbget.yml)
-- [Caddyfile](caddy/Caddyfile)
-- [Hostname Caddyfile example](caddy/Caddyfile.hostnames.example)
+- [Path-based Docker Caddyfile](caddy/Caddyfile)
+- [Hostname Docker Caddy example](caddy/Caddyfile.hostnames.example)
+- [Internal wolf.den Docker Caddy example](caddy/Caddyfile.internal-wolf.den.example)
 - [Wolf Den external Caddy example](caddy/Caddyfile.external-wolf.den.example)
 - [External Caddy on 192.168.137.251 example](caddy/Caddyfile.external-192.168.137.251.example)
 - [External Caddy port-mirror example](caddy/Caddyfile.external-port-mirror-192.168.137.251.example)
 - [Env example](examples/media-stack.env.example)
 - [SMB fstab example](examples/fstab-smb-example.txt)
-- [Native NZBGet notes](outputs/native-nzbget-arr-troubleshooting.md)
+- [Troubleshooting notes](outputs/native-nzbget-arr-troubleshooting.md)
 - [ZIP bundle](outputs/debian-hotio-media-stack-pack.zip)
-
-
-
-
-
-
-

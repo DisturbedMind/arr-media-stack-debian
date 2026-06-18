@@ -7,7 +7,8 @@ START_STACK=0
 
 usage() {
   cat <<'USAGE'
-Install/stage the Docker ARR Media Stack on Debian.
+Prepare a Debian 12 ARR media stack with hotio Docker containers,
+native NZBGet, optional Caddy reverse proxy files, and Windows SMB storage.
 
 Usage:
   scripts/install-debian.sh [--start]
@@ -20,8 +21,9 @@ Environment:
   STACK_USER=<user>            Owner for /opt/media-stack files.
 
 This script installs required Debian packages, Docker Engine if missing,
-native NZBGet, and stages compose/Caddy/example files. It does not write your
-SMB password or edit /etc/fstab automatically.
+native NZBGet, unrar, ffmpeg, and stages compose/Caddy/example files. It keeps
+your media on the Windows SMB server and keeps app config under /opt/media-stack.
+It does not write your SMB password or edit /etc/fstab automatically.
 USAGE
 }
 
