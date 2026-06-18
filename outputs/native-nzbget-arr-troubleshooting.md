@@ -129,6 +129,43 @@ curl -I http://ARR_STACK_IP:6789
 
 Replace `ARR_STACK_IP` with the Debian ARR stack IP, or use `127.0.0.1` if Caddy and the stack are on the same server.
 
+## Browser says connection refused
+
+If the browser says `connection refused` for `http://radarr.wolf.den`, the request is not reaching a working Caddy listener on port `80`.
+
+Run this on the Caddy server:
+
+```bash
+getent hosts radarr.wolf.den
+sudo systemctl status caddy --no-pager
+sudo ss -ltnp | grep ':80'
+sudo journalctl -u caddy -n 80 --no-pager
+sudo ufw status verbose
+```
+
+Expected:
+
+```text
+radarr.wolf.den -> 192.168.137.253
+caddy.service -> active/running
+ss -> caddy listening on 0.0.0.0:80 or [::]:80
+```
+
+If Caddy is not running:
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+sudo journalctl -u caddy -n 80 --no-pager
+```
+
+If Caddy is running but UFW blocks port `80`:
+
+```bash
+sudo ufw allow from 192.168.137.0/24 to any port 80 proto tcp
+sudo ufw reload
+```
+
 On this install, `host.docker.internal` resolved but the Arr test still hung. The working fix was to use the Docker Compose network gateway directly:
 
 ```text

@@ -604,6 +604,47 @@ curl -I http://ARR_STACK_IP:6789
 
 Replace `ARR_STACK_IP` with the Debian ARR stack IP, or use `127.0.0.1` if Caddy and the ARR stack are on the same machine.
 
+If the browser says `connection refused` for `http://radarr.wolf.den`, troubleshoot Caddy itself first. That error usually means nothing is listening on `192.168.137.253:80`, or the Caddy server firewall is rejecting port `80`.
+
+Run this on the Caddy server:
+
+```bash
+getent hosts radarr.wolf.den
+sudo systemctl status caddy --no-pager
+sudo ss -ltnp | grep ':80'
+sudo journalctl -u caddy -n 80 --no-pager
+sudo ufw status verbose
+```
+
+Good signs:
+
+```text
+radarr.wolf.den resolves to 192.168.137.253
+caddy.service is active/running
+ss shows caddy listening on 0.0.0.0:80 or [::]:80
+```
+
+If Caddy is not running:
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+sudo journalctl -u caddy -n 80 --no-pager
+```
+
+If Caddy is running but port `80` is blocked by UFW:
+
+```bash
+sudo ufw allow from 192.168.137.0/24 to any port 80 proto tcp
+sudo ufw reload
+```
+
+From another machine on the LAN, test:
+
+```bash
+curl -I http://radarr.wolf.den
+```
+
 The download client settings do not change in any option. The Arr apps should still connect to native NZBGet at `172.18.0.1:6789` with download-client `Url Base` blank.
 
 If your Caddy server is external on `192.168.137.251`, use:
