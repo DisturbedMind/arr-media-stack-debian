@@ -989,6 +989,14 @@ That file is the path-based Caddy config. A no-URL-Base hostname example is also
 caddy/Caddyfile.hostnames.example
 ```
 
+For the current `wolf.den` setup with the optional Docker Caddy container, use this file instead:
+
+```text
+caddy/Caddyfile.internal-wolf.den.example
+```
+
+This is different from the external Caddyfile. The internal Docker Caddyfile proxies to Docker service names like `radarr:7878`, while native NZBGet is reached at `172.18.0.1:6789`.
+
 For an already-running external Caddy server at `192.168.137.251`, prefer:
 
 ```text
@@ -1017,6 +1025,14 @@ Install the Caddy config into the stack folder:
 cd /opt/media-stack
 mkdir -p /opt/media-stack/caddy/data /opt/media-stack/caddy/config
 cp caddy/Caddyfile /opt/media-stack/caddy/Caddyfile
+```
+
+For the current `wolf.den` hostname setup, use this instead:
+
+```bash
+cd /opt/media-stack
+mkdir -p /opt/media-stack/caddy/data /opt/media-stack/caddy/config
+cp caddy/Caddyfile.internal-wolf.den.example /opt/media-stack/caddy/Caddyfile
 ```
 
 Start internal Docker Caddy:

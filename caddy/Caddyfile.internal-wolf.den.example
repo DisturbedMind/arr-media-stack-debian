@@ -1,0 +1,54 @@
+# Internal Docker Caddy example for the wolf.den hostname layout.
+#
+# Use this when Caddy is the optional Docker container from this repo:
+#
+#   docker compose --profile internal-caddy up -d caddy
+#
+# DNS records should point these names to the Debian server IP that publishes
+# Docker port 80:
+#
+#   radarr.wolf.den
+#   sonarr.wolf.den
+#   lidarr.wolf.den
+#   whisparrv3.wolf.den
+#   whisparrv2.wolf.den
+#   nzbget.wolf.den
+#
+# Keep every Arr app URL Base blank.
+#
+# These reverse_proxy targets are Docker service names on the media network.
+# Native NZBGet is reached through the Compose network gateway.
+
+{
+	auto_https off
+}
+
+http://radarr.wolf.den {
+	encode gzip
+	reverse_proxy radarr:7878
+}
+
+http://sonarr.wolf.den {
+	encode gzip
+	reverse_proxy sonarr:8989
+}
+
+http://lidarr.wolf.den {
+	encode gzip
+	reverse_proxy lidarr:8686
+}
+
+http://whisparrv3.wolf.den {
+	encode gzip
+	reverse_proxy whisparrv3:6969
+}
+
+http://whisparrv2.wolf.den {
+	encode gzip
+	reverse_proxy whisparrv2:6969
+}
+
+http://nzbget.wolf.den {
+	encode gzip
+	reverse_proxy 172.18.0.1:6789
+}
