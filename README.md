@@ -645,6 +645,39 @@ From another machine on the LAN, test:
 curl -I http://radarr.wolf.den
 ```
 
+If Caddy is running and `http://192.168.137.253` responds, but `http://radarr.wolf.den` does not, split DNS from Caddy with a Host-header test.
+
+Run this on the Caddy server:
+
+```bash
+curl -I -H 'Host: radarr.wolf.den' http://127.0.0.1
+curl -I -H 'Host: sonarr.wolf.den' http://127.0.0.1
+curl -I -H 'Host: lidarr.wolf.den' http://127.0.0.1
+curl -I -H 'Host: whisparrv3.wolf.den' http://127.0.0.1
+curl -I -H 'Host: whisparrv2.wolf.den' http://127.0.0.1
+curl -I -H 'Host: nzbget.wolf.den' http://127.0.0.1
+```
+
+If those work from the Caddy server, Caddy is matching the hostnames correctly and the problem is on the client/DNS side. On a Windows client, check:
+
+```powershell
+nslookup radarr.wolf.den
+nslookup sonarr.wolf.den
+Resolve-DnsName radarr.wolf.den
+curl.exe -v --resolve radarr.wolf.den:80:192.168.137.253 http://radarr.wolf.den/
+ipconfig /flushdns
+```
+
+The `--resolve` test bypasses DNS. If it works but normal browsing does not, your client is not using the DNS records you created, or it has a stale DNS cache.
+
+Also make sure the browser is using plain HTTP, not HTTPS:
+
+```text
+http://radarr.wolf.den/
+```
+
+This stack is configured as internal HTTP. Do not use `https://radarr.wolf.den/` unless you deliberately add TLS later.
+
 The download client settings do not change in any option. The Arr apps should still connect to native NZBGet at `172.18.0.1:6789` with download-client `Url Base` blank.
 
 If your Caddy server is external on `192.168.137.251`, use:

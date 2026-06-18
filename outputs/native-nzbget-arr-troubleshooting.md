@@ -166,6 +166,29 @@ sudo ufw allow from 192.168.137.0/24 to any port 80 proto tcp
 sudo ufw reload
 ```
 
+If Caddy is running and `http://192.168.137.253` responds, but `http://radarr.wolf.den` does not, test Caddy without DNS:
+
+```bash
+curl -I -H 'Host: radarr.wolf.den' http://127.0.0.1
+curl -I -H 'Host: sonarr.wolf.den' http://127.0.0.1
+curl -I -H 'Host: lidarr.wolf.den' http://127.0.0.1
+curl -I -H 'Host: whisparrv3.wolf.den' http://127.0.0.1
+curl -I -H 'Host: whisparrv2.wolf.den' http://127.0.0.1
+curl -I -H 'Host: nzbget.wolf.den' http://127.0.0.1
+```
+
+If those work on the Caddy server, the Caddyfile is good and the client DNS is the problem. On Windows, test:
+
+```powershell
+nslookup radarr.wolf.den
+nslookup sonarr.wolf.den
+Resolve-DnsName radarr.wolf.den
+curl.exe -v --resolve radarr.wolf.den:80:192.168.137.253 http://radarr.wolf.den/
+ipconfig /flushdns
+```
+
+Use `http://radarr.wolf.den/`, not `https://radarr.wolf.den/`, unless TLS has been configured.
+
 On this install, `host.docker.internal` resolved but the Arr test still hung. The working fix was to use the Docker Compose network gateway directly:
 
 ```text
