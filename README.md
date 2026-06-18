@@ -670,6 +670,41 @@ ipconfig /flushdns
 
 The `--resolve` test bypasses DNS. If it works but normal browsing does not, your client is not using the DNS records you created, or it has a stale DNS cache.
 
+If the `--resolve` test still says `Connection refused`, DNS is not the problem. Your client is reaching `192.168.137.253`, but port `80` is not accepting the connection from the LAN.
+
+Run these on the Caddy server:
+
+```bash
+ip -br addr
+sudo systemctl status caddy --no-pager
+sudo ss -ltnp '( sport = :80 )'
+sudo grep -nE 'bind|wolf.den|reverse_proxy|:80' /etc/caddy/Caddyfile
+curl -v -H 'Host: radarr.wolf.den' http://127.0.0.1/
+curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
+```
+
+Read the result like this:
+
+```text
+127.0.0.1 works, 192.168.137.253 fails:
+Caddy is bound only to localhost or the server does not actually own 192.168.137.253.
+
+Both 127.0.0.1 and 192.168.137.253 work on the Caddy server, but Windows still refuses:
+The block is between Windows and the Caddy server. Check the Caddy server firewall, host firewall, VM/NAT rules, or the Windows network path.
+
+Neither works:
+Caddy is running as a service but is not listening correctly on port 80, or the Caddyfile did not load.
+```
+
+If `ss` shows Caddy listening only on `127.0.0.1:80`, remove any localhost-only bind:
+
+```bash
+sudo sed -i '/^[[:space:]]*bind /d' /etc/caddy/Caddyfile
+sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+```
+
 Also make sure the browser is using plain HTTP, not HTTPS:
 
 ```text

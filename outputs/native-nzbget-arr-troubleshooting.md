@@ -189,6 +189,41 @@ ipconfig /flushdns
 
 Use `http://radarr.wolf.den/`, not `https://radarr.wolf.den/`, unless TLS has been configured.
 
+If the Windows `curl.exe --resolve` test still says `Connection refused`, DNS is not the problem. Windows is reaching `192.168.137.253`, but port `80` is refusing the connection.
+
+Run these on the Caddy server:
+
+```bash
+ip -br addr
+sudo systemctl status caddy --no-pager
+sudo ss -ltnp '( sport = :80 )'
+sudo grep -nE 'bind|wolf.den|reverse_proxy|:80' /etc/caddy/Caddyfile
+curl -v -H 'Host: radarr.wolf.den' http://127.0.0.1/
+curl -v -H 'Host: radarr.wolf.den' http://192.168.137.253/
+```
+
+Interpretation:
+
+```text
+127.0.0.1 works, 192.168.137.253 fails:
+Caddy is bound only to localhost or the server does not own 192.168.137.253.
+
+Both work on the Caddy server, but Windows still refuses:
+The block is between Windows and the Caddy server. Check host firewall, VM/NAT rules, router ACLs, or the Windows network path.
+
+Neither works:
+Caddy is not listening correctly on port 80, even if the service is active.
+```
+
+If Caddy is bound only to localhost, remove bind lines:
+
+```bash
+sudo sed -i '/^[[:space:]]*bind /d' /etc/caddy/Caddyfile
+sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+```
+
 On this install, `host.docker.internal` resolved but the Arr test still hung. The working fix was to use the Docker Compose network gateway directly:
 
 ```text
