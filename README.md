@@ -797,6 +797,15 @@ command -v caddy
 
 If `systemctl` says `Unit caddy.service not found`, native Caddy is not installed as a Debian service yet. Install the official Caddy Debian package:
 
+Before installing, make sure you are on the Caddy server, not just the ARR stack server:
+
+```bash
+hostname
+ip -br addr
+```
+
+For Option C, this should be the server that owns the `wolf.den` DNS target IP. In the current notes, that is `192.168.137.253`. If you are on a different machine, `caddy.service not found` may be normal there.
+
 ```bash
 sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
@@ -921,7 +930,7 @@ docker rm caddy
 sudo systemctl restart caddy
 ```
 
-If `systemctl restart caddy` still says `Unit caddy.service not found`, do not keep retrying restart. Install native Caddy with the commands above, or manage Caddy as a Docker container instead. This guide's external Caddy option assumes native Caddy on the server at `192.168.137.251`.
+If `systemctl restart caddy` still says `Unit caddy.service not found`, do not keep retrying restart. Either you are not on the Caddy server, or native Caddy is not installed there. Option C assumes native Caddy on the server that owns the `wolf.den` DNS target IP, currently `192.168.137.253`.
 
 On the Debian ARR stack server, allow the Caddy server to reach the app ports:
 
