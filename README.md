@@ -598,13 +598,31 @@ sudo apt install -y caddy
 
 After that, `systemctl status caddy` should work.
 
-Then install this project's Caddyfile:
+Then install this project's Caddyfile. Run this from the cloned GitHub repo, not from `/etc/caddy` or `/opt/media-stack`:
 
 ```bash
+cd /tmp/arr-media-stack-debian
+git pull
+ls -l caddy/Caddyfile.external-192.168.137.251.example
 sudo cp caddy/Caddyfile.external-192.168.137.251.example /etc/caddy/Caddyfile
 sudo sed -i 's/ARR_STACK_IP/DEBIAN_SERVER_IP/g' /etc/caddy/Caddyfile
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
+```
+
+If `ls` says the file does not exist, you are either in the wrong folder or the repo is old. Find the repo copy with:
+
+```bash
+sudo find /tmp /opt /root "$HOME" -path '*/caddy/Caddyfile.external-192.168.137.251.example' -type f 2>/dev/null
+```
+
+If nothing is returned, download a fresh copy:
+
+```bash
+cd /tmp
+rm -rf arr-media-stack-debian
+git clone https://github.com/DisturbedMind/arr-media-stack-debian.git
+cd /tmp/arr-media-stack-debian
 ```
 
 Replace `DEBIAN_SERVER_IP` in the command with the real Debian ARR stack IP before running it. If Caddy and the ARR stack are on the same Debian machine, use this instead:

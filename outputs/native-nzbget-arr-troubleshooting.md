@@ -46,6 +46,29 @@ Failed to restart caddy.service: Unit caddy.service not found.
 
 then native Caddy is not installed as a Debian service on that machine. Install native Caddy first, or manage Caddy as a Docker container instead. For the external proxy at `192.168.137.251`, this guide expects native Caddy so `/etc/caddy/Caddyfile` and `systemctl reload caddy` work.
 
+If copying the external Caddyfile fails with:
+
+```text
+cp: cannot stat 'caddy/Caddyfile.external-192.168.137.251.example': No such file or directory
+```
+
+you are not in the cloned repo folder, or the repo is old. Use:
+
+```bash
+cd /tmp/arr-media-stack-debian
+git pull
+ls -l caddy/Caddyfile.external-192.168.137.251.example
+```
+
+If that folder does not exist, clone it again:
+
+```bash
+cd /tmp
+rm -rf arr-media-stack-debian
+git clone https://github.com/DisturbedMind/arr-media-stack-debian.git
+cd /tmp/arr-media-stack-debian
+```
+
 On this install, `host.docker.internal` resolved but the Arr test still hung. The working fix was to use the Docker Compose network gateway directly:
 
 ```text
