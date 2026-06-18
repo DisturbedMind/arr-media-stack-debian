@@ -30,6 +30,22 @@ Keep blank for this native NZBGet setup.
 
 If you set an Arr app `URL Base`, direct browser access changes too. `http://DEBIAN_SERVER_IP:7878` becomes `http://DEBIAN_SERVER_IP:7878/radarr/`. If you want direct ports like `http://DEBIAN_SERVER_IP:7878/` to keep working, leave every Arr `URL Base` blank and either skip path-based Caddy or use hostname-based Caddy instead.
 
+## Caddy service not found
+
+If this fails:
+
+```bash
+sudo systemctl restart caddy
+```
+
+with:
+
+```text
+Failed to restart caddy.service: Unit caddy.service not found.
+```
+
+then native Caddy is not installed as a Debian service on that machine. Install native Caddy first, or manage Caddy as a Docker container instead. For the external proxy at `192.168.137.251`, this guide expects native Caddy so `/etc/caddy/Caddyfile` and `systemctl reload caddy` work.
+
 On this install, `host.docker.internal` resolved but the Arr test still hung. The working fix was to use the Docker Compose network gateway directly:
 
 ```text

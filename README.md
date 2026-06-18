@@ -577,7 +577,28 @@ caddy/Caddyfile.external-192.168.137.251.example
 
 In that file, replace `ARR_STACK_IP` with the Debian server IP that runs Docker and NZBGet. If Caddy runs on the same Debian server as the stack, use `127.0.0.1`.
 
-On the Caddy server, install it like this:
+First confirm whether native Caddy is installed on the Caddy server:
+
+```bash
+systemctl status caddy --no-pager
+command -v caddy
+```
+
+If `systemctl` says `Unit caddy.service not found`, native Caddy is not installed as a Debian service yet. Install the official Caddy Debian package:
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+sudo chmod o+r /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install -y caddy
+```
+
+After that, `systemctl status caddy` should work.
+
+Then install this project's Caddyfile:
 
 ```bash
 sudo cp caddy/Caddyfile.external-192.168.137.251.example /etc/caddy/Caddyfile
@@ -635,6 +656,8 @@ docker stop caddy
 docker rm caddy
 sudo systemctl restart caddy
 ```
+
+If `systemctl restart caddy` still says `Unit caddy.service not found`, do not keep retrying restart. Install native Caddy with the commands above, or manage Caddy as a Docker container instead. This guide's external Caddy option assumes native Caddy on the server at `192.168.137.251`.
 
 On the Debian ARR stack server, allow the Caddy server to reach the app ports:
 
