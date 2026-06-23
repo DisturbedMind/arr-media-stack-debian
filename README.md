@@ -65,6 +65,64 @@ Container paths:
 
 The `/mnt/media/...` paths are the important ones. Native NZBGet reports those paths, and the containers can see those same paths, so remote path mappings stay simple.
 
+## Recommended VM Specs And Performance Setup
+
+This stack can run on a small VM, but it becomes unstable when memory is tight. The Arr apps use extra RAM during RSS syncs, library refreshes, imports, media analysis, and Whisparr v3 matching. NZBGet unpacking can also spike memory and disk I/O.
+
+Recommended Hyper-V sizing:
+
+```text
+Minimum test VM:       8 GB RAM, 4 vCPU
+Better daily use:      12 GB RAM, 4 to 6 vCPU
+Recommended stable VM: 16 GB RAM, 6 to 8 vCPU
+Large libraries/imports: 24 GB RAM if available
+```
+
+Storage layout:
+
+```text
+Debian OS disk:       60 GB minimum, 100 GB recommended
+/opt/media-stack:     Keep on the VM's local virtual disk
+/opt/media-stack/appdata: local VM disk, not SMB
+Media libraries:      SMB shares are fine
+Downloads:            SMB shares are used in this guide, but local SSD is faster if you redesign paths later
+```
+
+Hyper-V recommendations:
+
+```text
+Use a fixed memory assignment if possible.
+If using Dynamic Memory, set Minimum RAM to at least 8 GB.
+Set Startup RAM to 12 GB or 16 GB.
+Do not let the VM balloon down while imports are running.
+Keep checkpoints/snapshots short-lived; do not run the stack long-term on old checkpoint chains.
+```
+
+Add swap on Debian even if you increase RAM. Swap is not a replacement for RAM, but it prevents sudden crashes when imports or unpacking briefly spike memory:
+
+```bash
+sudo fallocate -l 8G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=20' | sudo tee /etc/sysctl.d/99-media-stack-memory.conf
+sudo sysctl --system
+free -h
+swapon --show
+```
+
+For best stability:
+
+```text
+Do not import every library at once.
+Do not run Radarr, Sonarr, Lidarr, and both Whisparr refreshes at the same time.
+Let one large import finish before starting the next.
+Keep app configs in /opt/media-stack/appdata and back them up.
+Watch memory during first imports with: docker stats
+Check for OOM kills with: sudo dmesg -T | grep -Ei 'oom|killed process|out of memory'
+```
+
 ## Bring Your Own Usenet Accounts
 
 This project installs the stack, but it does not include Usenet access or indexer accounts. Before the Arr apps can search and download, you need:
