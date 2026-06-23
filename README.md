@@ -1,3 +1,13 @@
+<p align="center">
+  <img alt="Debian" src="https://img.shields.io/badge/Debian-12-A81D33?logo=debian&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
+  <img alt="Arr Stack" src="https://img.shields.io/badge/Arr-Radarr%20%7C%20Sonarr%20%7C%20Lidarr-ffc230">
+  <img alt="NZBGet" src="https://img.shields.io/badge/NZBGet-native-2EA043">
+  <img alt="Storage" src="https://img.shields.io/badge/Storage-SMB-6f42c1">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-blue">
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-Debian-A81D33?logo=debian&logoColor=white">
+</p>
+
 ![Wolf](assets/wolf.png)
 
 # Debian ARR Media Stack Installer
